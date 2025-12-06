@@ -389,20 +389,58 @@ class GedcomParser:
         except Exception as e:
             logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")
 
-    def get_full_address_book(self) -> FuzzyAddressBook:
+    # def get_full_address_book(self) -> FuzzyAddressBook:
+    #     """
+    #     Returns address book of all places found in the GEDCOM file.
+
+    #     Returns:
+    #         FuzzyAddressBook: Address book of places.
+    #     """
+
+    #     # Return cached if available
+    #     if self._cached_address_book:
+    #         return self._cached_address_book
+    #     self._load_people_and_places()
+    #     return self._cached_address_book if self._cached_address_book else FuzzyAddressBook()
+
+    def get_full_address_list(self) -> List[str]:
         """
-        Returns address book of all places found in the GEDCOM file.
+        Returns a list of all unique places found in the GEDCOM file.
 
         Returns:
-            FuzzyAddressBook: Address book of places.
+            List[str]: List of unique place names.
         """
+        address_list = []
+        try:
+            with GedcomReader(str(self.gedcom_file)) as g:
+                # Individuals: collect PLAC under any event (BIRT/DEAT/BAPM/MARR/etc.)
+                for indi in g.records0("INDI"):
+                    for ev in indi.sub_records:
+                        plac = ev.sub_tag_value("PLAC")
+                        if plac:
+                            place = plac.strip()
+                            address_list.append(place)
 
-        # Return cached if available
-        if self._cached_address_book:
-            return self._cached_address_book
-        self._load_people_and_places()
-        return self._cached_address_book if self._cached_address_book else FuzzyAddressBook()
+            with GedcomReader(str(self.gedcom_file)) as g:
+                # Individuals: collect PLAC under any event (BIRT/DEAT/BAPM/MARR/etc.)
+                for indi in g.records0("INDI"):
+                    for ev in indi.sub_records:
+                        plac = ev.sub_tag_value("PLAC")
+                        if plac:
+                            place = plac.strip()
+                            address_list.append(place)
 
+                # Families: marriage/divorce places, etc.
+                for fam in g.records0("FAM"):
+                    for ev in fam.sub_records:
+                        plac = ev.sub_tag_value("PLAC")
+                        if plac:
+                            place = plac.strip()
+                            address_list.append(place)
+        except Exception as e:
+            logger.error(f"Error extracting places from GEDCOM file '{self.gedcom_file}': {e}")
+        return address_list
+    
     def gedcom_writer(self, people: Dict[str, Person], output_filename: str, output_folder: Path, photo_subdir: Union[Path, None]):
         """
         Write a GEDCOM file from a dictionary of Person objects.

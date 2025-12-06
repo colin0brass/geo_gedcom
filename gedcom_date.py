@@ -176,7 +176,7 @@ class GedcomDate:
             if match:
                 return int(match.group(1))
             else:
-                logger.warning('GedcomDate: year_num: unable to parse single date: %s', single_date)
+                logger.warning('GedcomDate: year_num: unable to parse single date: "%s"', single_date)
                 return None
 
     @property

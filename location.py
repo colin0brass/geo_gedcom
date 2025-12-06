@@ -128,3 +128,41 @@ class Location:
             obj.latlon = LatLon(d[lat_key], d[lon_key])
         obj.used = 0
         return obj
+    
+    def copy(self) -> "Location":
+        """
+        Create a copy of this Location.
+
+        Returns:
+            Location: A new Location instance with the same attributes.
+        """
+        new_obj = Location()
+        for slot in self.__slots__:
+            value = getattr(self, slot)
+            # For canonical_parts, make a copy if it's a dict
+            if slot == "canonical_parts" and value is not None:
+                value = value.copy()
+            setattr(new_obj, slot, value)
+        return new_obj
+    
+    def merge(self, other: "Location") -> "Location":
+        """
+        Merge another Location into this one, preferring non-empty values.
+
+        Args:
+            other (Location): Other Location to merge.
+
+        Returns:
+            Location: Merged Location instance.
+        """
+        merged = self.copy()
+        if not isinstance(other, Location):
+            return merged
+        for slot in self.__slots__:
+            if slot == 'latlon':
+                if merged.latlon is None and other.latlon is not None:
+                    merged.latlon = other.latlon
+            else:
+                if not getattr(merged, slot) and getattr(other, slot):
+                    setattr(merged, slot, getattr(other, slot))
+        return merged

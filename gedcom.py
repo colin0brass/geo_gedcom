@@ -79,9 +79,10 @@ class Gedcom:
     __slots__ = [
         'gedcom_parser',
         'people',
-        'address_book'
+        # 'address_book',
+        'address_list',
     ]
-    def __init__(self, gedcom_file: Path, only_use_photo_tags: bool) -> None:
+    def __init__(self, gedcom_file: Path, only_use_photo_tags: bool = True) -> None:
         """Initialize the Gedcom handler and load people and places from the GEDCOM file."""
         self.gedcom_parser = GedcomParser(
             gedcom_file=gedcom_file,
@@ -108,15 +109,24 @@ class Gedcom:
         self.people = self.gedcom_parser.parse_people()
         return self.people
 
-    def get_full_address_book(self) -> FuzzyAddressBook:
+    # def get_full_address_book(self) -> FuzzyAddressBook:
+    #     """
+    #     Get all places from the GEDCOM file as a FuzzyAddressBook.
+
+    #     Returns:
+    #         FuzzyAddressBook: Address book containing all unique places.
+    #     """
+    #     self.address_book = self.gedcom_parser.get_full_address_book()
+    #     return self.address_book
+
+    def read_full_address_list(self) -> None:
         """
-        Get all places from the GEDCOM file as a FuzzyAddressBook.
+        Get all places from the GEDCOM file.
 
         Returns:
-            FuzzyAddressBook: Address book containing all unique places.
+            List[str]: List of unique place names.
         """
-        self.address_book = self.gedcom_parser.get_full_address_book()
-        return self.address_book
+        self.address_list = self.gedcom_parser.get_full_address_list()
 
     def filter_generations(
         self,

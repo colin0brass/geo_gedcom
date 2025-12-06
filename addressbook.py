@@ -20,18 +20,24 @@ logger = logging.getLogger(__name__)
 
 class FuzzyAddressBook:
     """
-    FuzzyAddressBook for storing, managing, and fuzzy-matching geocoded addresses and locations.
+    Stores and manages a collection of geocoded addresses with fuzzy matching support.
 
     Attributes:
-        __addresses (Dict[str, Location]): Dictionary of addresses.
-        __alt_addr_to_address_lookup (Dict[str, List[str]]): Mapping of alt_addr to addresses.
-        summary_columns (List[str]): Columns for summary reporting.
+        __addresses (Dict[str, Location]): Internal mapping of address strings to Location objects.
+        __alt_addr_to_address_lookup (Dict[str, List[str]]): Maps alt_addr to addresses.
+        __canonical_addr_to_address_lookup (Dict[str, List[str]]): Maps canonical_addr to addresses.
+        summary_columns (List[str]): List of columns for summary output.
     """
+
     def __init__(self):
+        """
+        Initialize an empty FuzzyAddressBook.
+        """
         self.__addresses : Dict[str, Location] = {}
         self.__alt_addr_to_address_lookup: Dict[str, List[str]] = {}
+        self.__canonical_addr_to_address_lookup: Dict[str, List[str]] = {}
         self.summary_columns = [
-            'address', 'alt_addr',  'used', 'type', 'class_', 'icon',
+            'address', 'alt_addr', 'canonical_addr', 'used', 'type', 'class_', 'icon',
             'latitude', 'longitude', 'found_country', 'country_code', 'country_name'
         ]
 
@@ -55,8 +61,8 @@ class FuzzyAddressBook:
         else:
             row['latitude'] = None
             row['longitude'] = None
-        return row    
-
+        return row
+    
     def __add_address(self, key: str, location: Location):
         """
         Add a Location object to the address book and update alt_addr lookup.
@@ -99,6 +105,18 @@ class FuzzyAddressBook:
             # If no similar address exists, add it as a new entry.
             self.__add_address(address, location)
 
+    def get_address(self, key: str) -> Optional[Location]:
+        """
+        Retrieve a Location object by address key.
+
+        Args:
+            key (str): Address string.
+
+        Returns:
+            Optional[Location]: Location object if found, else None.
+        """
+        return self.__addresses.get(key)
+
     def __add_alt_addr_to_address_lookup(self, alt_addr: str, address: str):
         """
         Add an address to the alt_addr lookup dictionary.
@@ -124,22 +142,36 @@ class FuzzyAddressBook:
         """
         return self.__alt_addr_to_address_lookup.get(alt_addr, [])
 
-
-    def get_address(self, key: str) -> Optional[Location]:
+    def get_address_list_for_canonical_addr(self, canonical_addr: str) -> List[str]:
         """
-        Get the Location object for a given address key.
+        Get a list of addresses associated with a given canonical_addr.
 
         Args:
-            key (str): Address string.
+            canonical_addr (str): Canonical address string.
 
         Returns:
-            Optional[Location]: Location object or None if not found.
+            List[str]: List of associated addresses.
         """
-        return self.__addresses.get(key)
+        return self.__canonical_addr_to_address_lookup.get(canonical_addr, [])
+
+    def get_canonical_addr(self, address: str) -> Optional[str]:
+        """
+        Get the canonical address for a given address.
+
+        Args:
+            address (str): Address string.
+
+        Returns:
+            Optional[str]: Canonical address if found, else None.
+        """
+        for canonical, addresses in self.__canonical_addr_to_address_lookup.items():
+            if address in addresses:
+                return canonical
+        return None
 
     def addresses(self) -> Dict[str, Location]:
         """
-        Get all addresses in the address book.
+        Returns the addresses in the address book.
 
         Returns:
             Dict[str, Location]: Dictionary of addresses.
@@ -148,29 +180,16 @@ class FuzzyAddressBook:
     
     def get_alt_addr_list(self) -> List[str]:
         """
-        Get the list of alternative addresses in the address book.
+        Returns the list of alternative addresses in the address book.
 
         Returns:
             List[str]: List of alternative addresses.
         """
         return list(self.__alt_addr_to_address_lookup.keys())
 
-    def __add_alt_addr_to_address_lookup(self, alt_addr: str, address: str):
-        """
-        Add an address to the alt_addr lookup dictionary.
-
-        Args:
-            alt_addr (str): Alternative address string.
-            address (str): Address string to associate.
-        """
-        if alt_addr is not None and alt_addr != '' and alt_addr.lower() != 'none':
-            if alt_addr not in self.__alt_addr_to_address_lookup:
-                self.__alt_addr_to_address_lookup[alt_addr] = []
-            self.__alt_addr_to_address_lookup[alt_addr].append(address)
-
     def get_address_list(self) -> List[str]:
         """
-        Get the list of addresses in the address book.
+        Returns the list of addresses in the address book.
 
         Returns:
             List[str]: List of addresses.
@@ -179,7 +198,7 @@ class FuzzyAddressBook:
 
     def len(self) -> int:
         """
-        Get the number of addresses in the address book.
+        Returns the number of addresses in the address book.
 
         Returns:
             int: Number of addresses.
@@ -203,50 +222,3 @@ class FuzzyAddressBook:
             if score >= threshold:
                 return match
         return None
-
-    def fuzzy_add_address(self, address: str, location: Union[Location, None]):
-        """
-        Add a new address to the address book, using fuzzy matching to find
-        the best existing address if there's a close match, and use same alt_addr.
-
-        Args:
-            address (str): The address to add.
-            location (Location): The location data associated with the address.
-        """
-        existing_key = self.fuzzy_lookup_address(address)
-        if location is None:
-            location = Location(address=address)
-        if existing_key is not None:
-            # If a similar (or identical) address exists, create or update the entry with the same alt_addr
-            if existing_key == address:
-                location.used = self.__addresses[existing_key].used + 1
-            alt_addr = self.__addresses[existing_key].alt_addr
-            if alt_addr is not None:
-                location.alt_addr = alt_addr
-            self.__addresses[existing_key] = location
-        else:
-            # If no similar address exists, add it as a new entry.
-            self.__add_address(address, location)
-
-    def updatestats(self):
-        """
-        Update and return address book statistics.
-
-        Returns:
-            str: Statistics summary string.
-        """
-        self.used = 0
-        self.usedNone = 0
-        self.totaladdr = 0
-        if hasattr(self, 'addresses') and self.addresses:
-            for place,location in self.addresses().items():
-                if (getattr(location, 'used',0) > 0): 
-                    self.used += 1
-                    self.totaladdr += getattr(location, 'used',0)
-                    if (location and location.latlon is None or location.latlon.isNone()) or location is None : 
-                        self.usedNone += 1
-        hit = 1-(self.usedNone / self.used) if self.used > 0 else 0
-        self.stats = f"Unique addresses: {self.used} with unresolvable: {self.usedNone}\nAddress hit rate {hit:.1%}\n" 
-        if hit == 1:
-             self.stats = f"{self.stats}\nPerfect address lookup, Is this correct?"
-        return self.stats
