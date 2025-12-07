@@ -79,7 +79,7 @@ class Gedcom:
     __slots__ = [
         'gedcom_parser',
         'people',
-        # 'address_book',
+        'address_book', # TODO 
         'address_list',
     ]
     def __init__(self, gedcom_file: Path, only_use_photo_tags: bool = True) -> None:

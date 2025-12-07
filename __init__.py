@@ -1,4 +1,4 @@
-# Makes gedcom a Python package
+# Makes geo_gedcom a Python package
 
 from geo_gedcom.gedcom import Gedcom, GenerationTracker
 from geo_gedcom.geolocated_gedcom import GeolocatedGedcom
@@ -8,6 +8,7 @@ from geo_gedcom.location import Location
 from geo_gedcom.lat_lon import LatLon
 from geo_gedcom.addressbook import FuzzyAddressBook
 from geo_gedcom.gedcom_date import GedcomDate
+from geo_gedcom.geocache import GeoCache
 from geo_gedcom.geocode import Geocode
 from geo_gedcom.canonical import Canonical
 
@@ -23,6 +24,7 @@ __all__ = [
     "LatLon",
     "FuzzyAddressBook",
     "GedcomDate",
+    "GeoCache",
     "Geocode",
     "Canonical"
 ]

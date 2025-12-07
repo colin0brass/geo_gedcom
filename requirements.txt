@@ -1,3 +1,7 @@
 
 ged4py>=1.2.0
 rapidfuzz>=2.13.7
+unidecode
+pycountry
+pycountry-convert
+bpemb

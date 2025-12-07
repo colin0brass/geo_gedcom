@@ -37,7 +37,7 @@ class LifeEvent:
         'record',
         'location'
     ]
-    def __init__(self, place: str, date: DateValue = None, position: Optional[LatLon] = None, what: str = '', record=None):
+    def __init__(self, place: str, date: DateValue = None, position: Optional[LatLon] = None, what: Optional[str] = '', record=None):
         """
         Initialize a LifeEvent instance.
 
@@ -50,7 +50,7 @@ class LifeEvent:
         """
         self.place: str = place
         self.date: GedcomDate = GedcomDate(date)
-        self.what: str = what
+        self.what: Optional[str] = what
         self.record: Optional[Record] = record
         self.location: Location = Location(position=position, address=place) if position or place else None
 

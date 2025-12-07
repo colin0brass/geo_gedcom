@@ -377,14 +377,14 @@ class GedcomParser:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
                             place = plac.strip()
-                            self._cached_address_book.fuzzy_add_address(place, None)
+                            self._cached_address_book.add_address(place, None)
 
                 for fam in records('FAM'):
                     for ev in fam.sub_records:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
                             place = plac.strip()
-                            self._cached_address_book.fuzzy_add_address(place, None)
+                            self._cached_address_book.add_address(place, None)
 
         except Exception as e:
             logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")
