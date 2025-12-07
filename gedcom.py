@@ -269,12 +269,21 @@ class Gedcom:
         logger.info(message)
         return filtered_people, message
 
-    def find_person_by_name(self, name: str, exact_match: bool = False) -> List[str]:
+    def get_first_person_id(self) -> str:
         """
-        Find person ID(s) by name.
+        Get the xref_id of the first person in the people dictionary.
 
-        Searches through all people to find matching names. Can do exact or partial
-        (case-insensitive) matching.
+        Returns:
+            str: The xref_id of the first person.
+        """
+        return next(iter(self.people))
+    
+    def get_person_by_name(self, name: str, exact_match: bool = False) -> Optional[Person]:
+        """
+        Get a Person object by name.
+
+        Searches through all people to find a matching name. Can do exact or partial
+        (case-insensitive) matching. Returns the first match found.
 
         Args:
             name (str): The name to search for.
@@ -282,26 +291,21 @@ class Gedcom:
                 If False, matches if name appears anywhere in the person's name.
 
         Returns:
-            List[str]: List of xref_ids for matching people (empty if no matches found).
+            Optional[Person]: The matching Person object, or None if no match found.
         """
-        matches = []
         search_name = name.lower().strip()
         
-        for person_id, person in self.people.items():
+        for person in self.people.values():
             if person.name:
                 person_name = person.name.lower()
                 if exact_match:
                     if person_name == search_name:
-                        matches.append(person_id)
+                        return person
                 else:
                     if search_name in person_name:
-                        matches.append(person_id)
+                        return person
         
-        if matches:
-            logger.info(f"Found {len(matches)} person(s) matching '{name}': {matches}")
-        else:
-            logger.warning(f"No person found with name '{name}'")
-        return matches
+        return None
         
     def export_people_with_photos(
         self,
