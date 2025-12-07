@@ -28,7 +28,6 @@ from .geo_config import GeoConfig
 from .location import Location
 from .addressbook import FuzzyAddressBook
 from .geocache import GeoCache
-from .canonical import Canonical
 
 # Re-use higher-level logger (inherits configuration from main script)
 logger = logging.getLogger(__name__)
@@ -56,7 +55,7 @@ def load_yaml_config(path: Path) -> dict:
 
 class Geocode:
     """
-    Handles geocoding logic, cache management, canonicalization, and country/continent lookups for addresses.
+    Handles geocoding logic, cache management, and country/continent lookups for addresses.
 
     Attributes:
         default_country (str): Default country for geocoding.
@@ -65,14 +64,12 @@ class Geocode:
         geo_cache (GeoCache): Geocoded location cache manager.
         geolocator (Nominatim): Geopy Nominatim geocoder instance.
         geo_config (GeoConfig): Geographic configuration instance.
-        canonical (Canonical): Canonicalization utility instance.
-        include_canonical (bool): Whether to include canonical address info.
     """
 
     __slots__ = [
         'default_country', 'always_geocode', 'location_cache_file', 'additional_countries_codes_dict_to_add',
         'additional_countries_to_add', 'country_substitutions', 'geo_cache',
-        'geolocator', 'geo_config', 'canonical', 'include_canonical'
+        'geolocator', 'geo_config'
     ]
     geocode_sleep_interval = 1  # Delay due to Nominatim request limit
 
@@ -83,8 +80,7 @@ class Geocode:
         always_geocode: bool = False,
         alt_place_file_path: Optional[Path] = None,
         geo_config_path: Optional[Path] = None,
-        file_geo_cache_path: Optional[Path] = None,
-        include_canonical: bool = False
+        file_geo_cache_path: Optional[Path] = None
     ):
         """
         Initialize the Geocode object, loading country info and cache.
@@ -96,7 +92,6 @@ class Geocode:
             alt_place_file_path (Optional[Path]): Alternative place names file path.
             geo_config_path (Optional[Path]): Path to geocode.yaml configuration file.
             file_geo_cache_path (Optional[Path]): Path to per-file geo cache.
-            include_canonical (bool): Whether to include canonical address info.
         """
         self.default_country = default_country
         self.always_geocode = always_geocode
@@ -105,9 +100,6 @@ class Geocode:
         self.geo_cache = GeoCache(cache_file, always_geocode, alt_place_file_path, file_geo_cache_path)
         self.geolocator = Nominatim(user_agent="gedcom_geocoder")
         self.geo_config = GeoConfig(geo_config_path)
-        self.canonical = Canonical(self.geo_config)
-
-        self.include_canonical = include_canonical
 
     def save_geo_cache(self) -> None:
         """
@@ -220,15 +212,10 @@ class Geocode:
             use_place_name, cache_entry = self.geo_cache.lookup_geo_cache_entry(place)
 
         (place_with_country, country_code, country_name, found_country) = self.geo_config.get_place_and_countrycode(use_place_name)
-        if self.include_canonical:
-            canonical, parts = self.canonical.get_canonical(use_place_name, country_name)
         if cache_entry and not self.always_geocode:
             if cache_entry.get('latitude') and cache_entry.get('longitude'):
                 found_in_cache = True
                 location = Location.from_dict(cache_entry)
-                if self.include_canonical:
-                    location.canonical_addr = canonical
-                    location.canonical_parts = parts
                 if cache_entry.get('found_country', False) == False or cache_entry.get('country_name', '') == '':
                     if found_country:
                         logger.info(f"Found country in cache for {use_place_name}, but it was not marked as found.")

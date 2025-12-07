@@ -10,7 +10,6 @@ from geo_gedcom.addressbook import FuzzyAddressBook
 from geo_gedcom.gedcom_date import GedcomDate
 from geo_gedcom.geocache import GeoCache
 from geo_gedcom.geocode import Geocode
-from geo_gedcom.canonical import Canonical
 
 __all__ = [
     "Gedcom",
@@ -26,5 +25,4 @@ __all__ = [
     "GedcomDate",
     "GeoCache",
     "Geocode",
-    "Canonical"
 ]

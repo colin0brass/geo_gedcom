@@ -25,7 +25,6 @@ class FuzzyAddressBook:
     Attributes:
         __addresses (Dict[str, Location]): Internal mapping of address strings to Location objects.
         __alt_addr_to_address_lookup (Dict[str, List[str]]): Maps alt_addr to addresses.
-        __canonical_addr_to_address_lookup (Dict[str, List[str]]): Maps canonical_addr to addresses.
         summary_columns (List[str]): List of columns for summary output.
     """
 
@@ -35,9 +34,8 @@ class FuzzyAddressBook:
         """
         self.__addresses : Dict[str, Location] = {}
         self.__alt_addr_to_address_lookup: Dict[str, List[str]] = {}
-        self.__canonical_addr_to_address_lookup: Dict[str, List[str]] = {}
         self.summary_columns = [
-            'address', 'alt_addr', 'canonical_addr', 'used', 'type', 'class_', 'icon',
+            'address', 'alt_addr', 'used', 'type', 'class_', 'icon',
             'latitude', 'longitude', 'found_country', 'country_code', 'country_name'
         ]
 
@@ -141,33 +139,6 @@ class FuzzyAddressBook:
             List[str]: List of associated addresses.
         """
         return self.__alt_addr_to_address_lookup.get(alt_addr, [])
-
-    def get_address_list_for_canonical_addr(self, canonical_addr: str) -> List[str]:
-        """
-        Get a list of addresses associated with a given canonical_addr.
-
-        Args:
-            canonical_addr (str): Canonical address string.
-
-        Returns:
-            List[str]: List of associated addresses.
-        """
-        return self.__canonical_addr_to_address_lookup.get(canonical_addr, [])
-
-    def get_canonical_addr(self, address: str) -> Optional[str]:
-        """
-        Get the canonical address for a given address.
-
-        Args:
-            address (str): Address string.
-
-        Returns:
-            Optional[str]: Canonical address if found, else None.
-        """
-        for canonical, addresses in self.__canonical_addr_to_address_lookup.items():
-            if address in addresses:
-                return canonical
-        return None
 
     def addresses(self) -> Dict[str, Location]:
         """

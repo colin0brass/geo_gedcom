@@ -36,8 +36,7 @@ class GeolocatedGedcom(Gedcom):
             always_geocode: Optional[bool] = False,
             alt_place_file_path: Optional[Path] = None,
             geo_config_path: Optional[Path] = None,
-            file_geo_cache_path: Optional[Path] = None,
-            include_canonical: bool = True
+            file_geo_cache_path: Optional[Path] = None
     ):
         """
         Initialize GeolocatedGedcom.
@@ -50,7 +49,6 @@ class GeolocatedGedcom(Gedcom):
             alt_place_file_path (Optional[Path]): Path to alternative place file.
             geo_config_path (Optional[Path]): Path to geographic configuration file.
             file_geo_cache_path (Optional[Path]): Path to per-file geo cache.
-            include_canonical (bool): Whether to include canonical addresses.
         """
         super().__init__(gedcom_file)
 
@@ -62,8 +60,7 @@ class GeolocatedGedcom(Gedcom):
             always_geocode=always_geocode,
             alt_place_file_path=alt_place_file_path if alt_place_file_path else None,
             geo_config_path=geo_config_path if geo_config_path else None,
-            file_geo_cache_path=file_geo_cache_path,
-            include_canonical=include_canonical
+            file_geo_cache_path=file_geo_cache_path
         )
 
         self.read_full_address_book()

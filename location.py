@@ -139,9 +139,7 @@ class Location:
         new_obj = Location()
         for slot in self.__slots__:
             value = getattr(self, slot)
-            # For canonical_parts, make a copy if it's a dict
-            if slot == "canonical_parts" and value is not None:
-                value = value.copy()
+
             setattr(new_obj, slot, value)
         return new_obj
     
