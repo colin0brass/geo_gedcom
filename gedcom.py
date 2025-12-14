@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Union, Tuple
 from .addressbook import FuzzyAddressBook
 from .gedcom_parser import GedcomParser
 from .person import Person
+from .app_hooks import AppHooks
 
 logger = logging.getLogger(__name__)
 
@@ -81,12 +82,15 @@ class Gedcom:
         'people',
         'address_book', # TODO 
         'address_list',
+        'app_hooks'
     ]
-    def __init__(self, gedcom_file: Path, only_use_photo_tags: bool = True) -> None:
+    def __init__(self, gedcom_file: Path, only_use_photo_tags: bool = False, app_hooks: Optional['AppHooks'] = None) -> None:
         """Initialize the Gedcom handler and load people and places from the GEDCOM file."""
+        self.app_hooks = app_hooks
         self.gedcom_parser = GedcomParser(
             gedcom_file=gedcom_file,
-            only_use_photo_tags=only_use_photo_tags
+            only_use_photo_tags=only_use_photo_tags,
+            app_hooks=self.app_hooks
         )
         self.people = {}
         self.address_book = FuzzyAddressBook()
@@ -108,17 +112,7 @@ class Gedcom:
         """
         self.people = self.gedcom_parser.parse_people()
         return self.people
-
-    # def get_full_address_book(self) -> FuzzyAddressBook:
-    #     """
-    #     Get all places from the GEDCOM file as a FuzzyAddressBook.
-
-    #     Returns:
-    #         FuzzyAddressBook: Address book containing all unique places.
-    #     """
-    #     self.address_book = self.gedcom_parser.get_full_address_book()
-    #     return self.address_book
-
+    
     def read_full_address_list(self) -> None:
         """
         Get all places from the GEDCOM file.

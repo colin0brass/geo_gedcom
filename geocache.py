@@ -13,7 +13,7 @@ from pathlib import Path
 import time
 from typing import Dict, Optional, Tuple
 
-from .location import Location
+from geo_gedcom.location import Location
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ class GeoCache:
         always_geocode (bool): If True, ignore cache and always geocode.
         geo_cache (Dict[str, dict]): Dictionary mapping place names to cached geocode data.
         alt_addr_cache (Dict[str, dict]): Dictionary mapping place names to alternative address data.
+        time_between_retrying_failed_geocodes (int): Time in seconds to wait before retrying failed geocodes.
     """
 
     def __init__(
@@ -54,13 +55,15 @@ class GeoCache:
         self.alt_addr_cache: Dict[str, dict] = {}
         self.file_geo_cache_path = file_geo_cache_path
 
+        self.time_between_retrying_failed_geocodes = 1 * 24 * 3600  # One day
+
         self.geo_cache = self.read_geo_cache(self.location_cache_file)
         self.geo_cache.update(self.read_geo_cache(self.file_geo_cache_path))
         
         if alt_addr_file:
             self.read_alt_addr_file(alt_addr_file)
             self.add_alt_addr_to_cache()
-
+    
     def read_geo_cache(self, location_file_path: Optional[Path]) -> Dict[str, dict]:
         """
         Read geocoded location cache from the CSV file.
@@ -69,7 +72,7 @@ class GeoCache:
         Normalizes the 'found_country' field to boolean.
         If always_geocode is True or the cache file does not exist, skips loading.
         """
-        geo_cache: Dict[str, dict] = {}
+        geo_cache = {}
         if self.always_geocode:
             logger.info('Configured to ignore cache')
             return geo_cache
@@ -92,9 +95,9 @@ class GeoCache:
         except FileNotFoundError as e:
             logger.warning(f'Location cache file not found: {e}')
         except csv.Error as e:
-            logger.error(f'CSV error reading location cache file {location_file_path}: {e}')
+            logger.error(f'CSV error reading location cache file {self.location_cache_file}: {e}')
         except Exception as e:
-            logger.error(f'Error reading location cache file {location_file_path}: {e}')
+            logger.error(f'Error reading location cache file {self.location_cache_file}: {e}')
 
         return geo_cache
 
@@ -177,6 +180,22 @@ class GeoCache:
         use_addr_name = alt_addr_name if alt_addr_name else address
 
         if address_lower in self.geo_cache:
+            cache_entry = self.geo_cache[address_lower]
+            if cache_entry.get('no_result'):
+                # Check if enough time has passed to retry
+                last_attempt = cache_entry.get('timestamp', 0)
+                try:
+                    last_attempt = float(last_attempt)
+                except (TypeError, ValueError):
+                    last_attempt = 0
+                if time.time() - last_attempt > self.time_between_retrying_failed_geocodes:
+                    logger.info(f"Retrying geocode for previously failed address: {address}")
+                    del self.geo_cache[address_lower]  # Remove to allow re-geocoding
+                    return use_addr_name, None
+                else:
+                    logger.info(f"Address '{address}' marked as no_result; skipping geocoding.")
+                    return use_addr_name, cache_entry
+                
             if alt_addr_name is not None:
                 logger.info(f"Adding alternative address name for cache entry: {address} : {alt_addr_name}")
                 self.geo_cache[address_lower]['alt_addr'] = alt_addr_name
@@ -188,6 +207,27 @@ class GeoCache:
 
         return use_addr_name, None
 
+    def add_no_result_entry(self, address: str) -> None:
+        """
+        Add a 'no result' entry to the geocoded location cache.
+
+        Args:
+            address (str): The address string.
+        """
+        self.geo_cache[address.lower()] = {
+            'address': address,
+            'alt_addr': '',
+            'latitude': '',
+            'longitude': '',
+            'country_code': '',
+            'country_name': '',
+            'continent': '',
+            'found_country': 'False',
+            'no_result': True,
+            'timestamp': time.time(),
+            'used': 0
+        }
+
     def add_geo_cache_entry(self, address: str, location: Location) -> None:
         """
         Add a new entry to the geocoded location cache.
@@ -196,7 +236,7 @@ class GeoCache:
             address (str): The address string.
             location (Location): The geocoded location object.
         """
-        self.geo_cache[address] = {
+        self.geo_cache[address.lower()] = {
             'address': address,
             'alt_addr': getattr(location, 'alt_addr', ''),
             'latitude': getattr(location.latlon, 'lat', ''),

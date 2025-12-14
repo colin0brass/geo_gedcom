@@ -9,6 +9,7 @@ from .location import Location
 from .addressbook import FuzzyAddressBook
 from .life_event import LifeEvent
 from .lat_lon import LatLon
+from .app_hooks import AppHooks
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,9 @@ class GeolocatedGedcom(Gedcom):
         'geocoder',
         'address_book',
         'alt_place_file_path',
-        'geo_config_path'
+        'geo_config_path',
+        'file_geo_cache_path',
+        'app_hooks'
     ]
     geolocate_all_logger_interval = 20
     
@@ -34,9 +37,11 @@ class GeolocatedGedcom(Gedcom):
             location_cache_file: Path,
             default_country: Optional[str] = None,
             always_geocode: Optional[bool] = False,
+            cache_only: Optional[bool] = False,
             alt_place_file_path: Optional[Path] = None,
             geo_config_path: Optional[Path] = None,
-            file_geo_cache_path: Optional[Path] = None
+            file_geo_cache_path: Optional[Path] = None,
+            app_hooks: Optional['AppHooks'] = None
     ):
         """
         Initialize GeolocatedGedcom.
@@ -46,26 +51,44 @@ class GeolocatedGedcom(Gedcom):
             location_cache_file (str): Location cache file.
             default_country (Optional[str]): Default country for geocoding.
             always_geocode (Optional[bool]): Whether to always geocode.
+            cache_only (Optional[bool]): Whether to only use cache for geocoding.
             alt_place_file_path (Optional[Path]): Path to alternative place file.
             geo_config_path (Optional[Path]): Path to geographic configuration file.
             file_geo_cache_path (Optional[Path]): Path to per-file geo cache.
         """
-        super().__init__(gedcom_file)
+        super().__init__(gedcom_file=gedcom_file, app_hooks=app_hooks)
 
         self.address_book = FuzzyAddressBook()
+        self.app_hooks = app_hooks
 
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Initializing geocoder ...")
         self.geocoder = Geocode(
             cache_file=location_cache_file,
             default_country=default_country,
             always_geocode=always_geocode,
+            cache_only=cache_only,
             alt_place_file_path=alt_place_file_path if alt_place_file_path else None,
             geo_config_path=geo_config_path if geo_config_path else None,
-            file_geo_cache_path=file_geo_cache_path
+            file_geo_cache_path=file_geo_cache_path,
+            app_hooks=app_hooks
         )
 
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Reading GED ...")
         self.read_full_address_book()
+        if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+            if self.app_hooks.stop_requested():
+                logger.info("Geolocation process stopped by user.")
+                return
         self.geolocate_all()
+        if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+            if self.app_hooks.stop_requested():
+                logger.info("Geolocation process stopped by user.")
+                return
         self.parse_people()
+        if self.app_hooks and callable(getattr(self.app_hooks, "update_key_value", None)):
+            self.app_hooks.update_key_value(key="parsed", value=True)
 
     def save_location_cache(self) -> None:
         """
@@ -77,26 +100,51 @@ class GeolocatedGedcom(Gedcom):
         """
         Geolocate all places in the GEDCOM file.
         """
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Loading Cached ...")
         cached_places, non_cached_places = self.geocoder.separate_cached_locations(self.address_book)
-        logger.info(f"Found {cached_places.len()} cached places, {non_cached_places.len()} non-cached places.")
+        num_cached_places = cached_places.len()
+        num_non_cached_places = non_cached_places.len()
+        logger.info(f"Found {num_cached_places} cached places, {num_non_cached_places} non-cached places.")
 
-        logger.info(f"Geolocating {cached_places.len()} cached places...")
-        for place, data in cached_places.addresses().items():
+        logger.info(f"Geolocating {num_cached_places} cached places...")
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step(f"Matching cached places ...", target=num_cached_places)
+        for idx, (place, data) in enumerate(cached_places.addresses().items(), 1):
             use_place = data.alt_addr if data.alt_addr else place
             location = self.geocoder.lookup_location(use_place)
             self.address_book.add_address(place, location)
+            if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+                if self.app_hooks.stop_requested():
+                    logger.info("Geolocation process stopped by user.")
+                    break
+            if idx % self.geolocate_all_logger_interval == 0 or idx == num_cached_places:
+                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                    self.app_hooks.report_step(plus_step=self.geolocate_all_logger_interval)
         num_non_cached_places = non_cached_places.len()
 
         logger.info(f"Geolocating {num_non_cached_places} non-cached places...")
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step(f"Geolocating uncached places", target=num_non_cached_places)
         for place in non_cached_places.addresses().keys():
             logger.info(f"- {place}...")
         for idx, (place, data) in enumerate(non_cached_places.addresses().items(), 1):
             use_place = data.alt_addr if data.alt_addr else place
             location = self.geocoder.lookup_location(use_place)
             self.address_book.add_address(place, location)
+            if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+                if self.app_hooks.stop_requested():
+                    logger.info("Geolocation process stopped by user.")
+                    break
             if idx % self.geolocate_all_logger_interval == 0 or idx == num_non_cached_places:
-                logger.info(f"Geolocated {idx} of {num_non_cached_places} non-cached places...")
-                
+                logger.info(f"Geolocated {idx} of {num_non_cached_places} non-cached places ...")
+                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                    self.app_hooks.report_step(info=f"Geolocated {idx} of {num_non_cached_places}")
+            # Save the cache every 100 locations
+            if idx % 100 == 0:
+                self.save_location_cache()
+        self.save_location_cache() # Final save
+
         logger.info(f"Geolocation of all {self.address_book.len()} places completed.")
 
     def parse_people(self) -> None:
@@ -104,6 +152,8 @@ class GeolocatedGedcom(Gedcom):
         Parse and geolocate all people in the GEDCOM file.
         """
         super()._parse_people()
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Locating People", target=len(self.people))
         self.geolocate_people()
 
     # def get_full_address_book(self) -> FuzzyAddressBook:
@@ -133,13 +183,18 @@ class GeolocatedGedcom(Gedcom):
         """
         for person in self.people.values():
             found_location = False
+            if  self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                self.app_hooks.report_step(info=f"Reviewing {getattr(person, 'name', '-Unknown-')}")
             if person.birth:
                 event = self.__geolocate_event(person.birth)
                 person.birth.location = event.location
                 if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
                     person.latlon = event.location.latlon
                     found_location = True
-            for marriage_event in person.marriages:
+            for marriage in person.marriages:
+                marriage_event = marriage.event if marriage.event else None
+                if not marriage_event:
+                    continue
                 event = self.__geolocate_event(marriage_event)
                 marriage_event.location = event.location
                 if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
@@ -151,6 +206,13 @@ class GeolocatedGedcom(Gedcom):
                 if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
                     person.latlon = event.location.latlon
                     found_location = True
+            if person.residences:
+                for residence in person.residences:
+                    event = self.__geolocate_event(residence)
+                    residence.location = event.location
+                    if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
+                        person.latlon = event.location.latlon
+                        found_location = True
 
     def __geolocate_event(self, event: LifeEvent) -> LifeEvent:
         """
@@ -169,15 +231,15 @@ class GeolocatedGedcom(Gedcom):
                 map_tag = place_tag.sub_tag('MAP')
                 if place_tag.value:
                     location = self.geocoder.lookup_location(place_tag.value)
-                    event.location = location
+                    event.location = location if location else Location(address=place_tag.value)
                 if map_tag:
                     lat = map_tag.sub_tag('LATI')
                     lon = map_tag.sub_tag('LONG')
                     if lat and lon:
                         latlon = LatLon(lat.value, lon.value)
-                        event.latlon = latlon if latlon.is_valid() else None
+                        event.location.latlon = latlon if latlon.is_valid() else None
                     else:
-                        event.latlon = None
+                        event.location.latlon = None
             else:
                 logger.info(f"No place tag found for event in record {record}")
         else:

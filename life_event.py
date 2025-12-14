@@ -37,14 +37,14 @@ class LifeEvent:
         'record',
         'location'
     ]
-    def __init__(self, place: str, date: DateValue = None, position: Optional[LatLon] = None, what: Optional[str] = '', record=None):
+    def __init__(self, place: str, date: DateValue = None, latlon: Optional[LatLon] = None, what: Optional[str] = '', record=None):
         """
         Initialize a LifeEvent instance.
 
         Args:
             place (str): Place of the event.
             date (str or DateValue): Date of the event (will be parsed and resolved using GedcomDate).
-            position (Optional[LatLon]): Latitude/longitude.
+            latlon (Optional[LatLon]): Latitude/longitude.
             what (Optional[str]): Type of event (e.g., 'BIRT', 'DEAT').
             record (Optional[Record]): GEDCOM record.
         """
@@ -52,7 +52,7 @@ class LifeEvent:
         self.date: GedcomDate = GedcomDate(date)
         self.what: Optional[str] = what
         self.record: Optional[Record] = record
-        self.location: Location = Location(position=position, address=place) if position or place else None
+        self.location: Location = Location(latlon=latlon, address=place) if latlon or place else None
 
     def __repr__(self) -> str:
         """
@@ -79,10 +79,12 @@ class LifeEvent:
         Returns the value of a named attribute for the event, with some aliases.
         """
         if attr == 'latlon':
-            return self.location.latlon if self.location else None
+            return self.location.latlon if self.location else LatLon(None, None)
         elif attr == 'when' or attr == 'date':
             return self.date.resolved if self.date else None
-        elif attr == 'where' or attr == 'place':
+        elif attr == "when_year_num":
+            return self.date.year_num if self.date else None
+        elif attr == 'where' or attr == 'place' or attr == 'location':
             return self.place if self.place else None
         elif attr == 'what':
             return self.what if self.what else ""

@@ -9,7 +9,7 @@ Last updated: 2025-11-29
 """
 import os
 import re
-from typing import Dict, List, Optional, Union, Tuple
+from typing import Dict, List, Optional, TextIO, Union, Tuple
 import tempfile
 import shutil
 
@@ -19,7 +19,9 @@ from pathlib import Path
 from ged4py.parser import GedcomReader
 from ged4py.model import Record, NameRec
 from .person import Person, LifeEvent
+from .marriage import Marriage
 from .addressbook import FuzzyAddressBook
+from .app_hooks import AppHooks
 
 logger = logging.getLogger(__name__)
 
@@ -38,29 +40,47 @@ class GedcomParser:
     __slots__ = [
         'gedcom_file',
         '_cached_people', '_cached_address_book',
-        'only_use_photo_tags',
         'simplify_date',
-        'simplify_range_policy'
+        'simplify_range_policy',
+        'app_hooks',
+        'num_people',
+        'num_families',
+        'has_photo_tag',
+        'has_obje_tag',
+        'only_use_photo_tags',
     ]
 
     LINE_RE = re.compile(
         r'^(\d+)\s+(?:@[^@]+@\s+)?([A-Z0-9_]+)(.*)$'
     )  # allow optional @xref@ before the tag
 
-    def __init__(self, gedcom_file: Path = None, only_use_photo_tags: bool = True) -> None:
+    def __init__(self, gedcom_file: Path = None, only_use_photo_tags: bool = False, app_hooks: Optional['AppHooks'] = None) -> None:
         """
         Initialize GedcomParser.
 
         Args:
             gedcom_file (Path): Path to GEDCOM file.
         """
+        self.app_hooks = app_hooks
+
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Checking and fixing GEDCOM file ...")
         self.gedcom_file = self.check_fix_gedcom(gedcom_file)
+
         # caches populated by _load_people_and_places()
         self._cached_people = None
         self._cached_address_book = None
-        self.only_use_photo_tags = only_use_photo_tags
         self.simplify_date = True
         self.simplify_range_policy = 'first'  # 'first' or 'approximate'
+        self.num_people = 0
+        self.num_families = 0
+        
+        self.has_photo_tag, self.has_obje_tag = self.check_photo_tags(self.gedcom_file) if self.gedcom_file else (False, False)
+        # if file has _PHOTO tags, prefer those, otherwise use both _PHOTO and OBJE
+        if self.has_photo_tag:
+            self.only_use_photo_tags = True
+        else:
+            self.only_use_photo_tags = only_use_photo_tags
 
     def close(self):
         """Placeholder for compatibility."""
@@ -77,6 +97,31 @@ class GedcomParser:
             logger.warning(f"Checked and made corrections to GEDCOM file '{input_path}' saved as {temp_path}")
         return temp_path if changed else input_path
 
+    def check_if_tag_used(self, input_path: Path, tag: str) -> bool:
+        """Check if GEDCOM file has a specific tag."""
+        has_tag = False
+        try:
+            with open(input_path, 'r', encoding='utf-8', newline='', errors="replace") as infile:
+                for raw in infile:
+                    line = raw.rstrip('\r\n')
+                    m = self.LINE_RE.match(line)
+                    if not m:
+                        continue
+
+                    level_s, current_tag, rest = m.groups()
+                    if current_tag == tag:
+                        has_tag = True
+                        break
+        except IOError as e:
+            logger.error(f"Failed to check GEDCOM file {input_path} for {tag} tags: {e}")
+        return has_tag
+    
+    def check_photo_tags(self, input_path: Path) -> tuple[bool, bool]:
+        """Check if GEDCOM file has photo tags (_PHOTO or OBJE)."""
+        has_photo_tag = self.check_if_tag_used(input_path, "_PHOTO")
+        has_obje_tag = self.check_if_tag_used(input_path, "OBJE")
+        return has_photo_tag, has_obje_tag
+    
     def fix_gedcom_conc_cont_levels(self, input_path: Path, temp_path: Path) -> bool:
         """
         Fixes GEDCOM continuity and structure levels.
@@ -131,6 +176,8 @@ class GedcomParser:
                 date = date,
                 record=record,
                 what=record.tag)
+            if self.app_hooks and callable(getattr(self.app_hooks, "add_time_reference", None)):
+                self.app_hooks.add_time_reference(event.date)
         return event
 
     def __create_person(self, record: Record) -> Person:
@@ -187,14 +234,23 @@ class GedcomParser:
             record (Record): GEDCOM record.
 
         Returns:
-            List[str]: List of residence places.
+            List[LifeEvent]: List of residence events.
         """
         residences = []
-        for event_tag in ['RESI', 'ADDR']:
+        homelocationtags = ('RESI', 'ADDR', 'OCCU', 'CENS', 'EDUC')
+        otherlocationtags = ('CHR', 'BAPM', 'BASM', 'BAPL', 'IMMI', 'NATU', 'ORDN','ORDI', 'RETI', 
+                     'EVEN',  'CEME', 'CREM', 'FACT' )
+        place_list = []
+        for event_tag in homelocationtags + otherlocationtags:
             for event_record in record.sub_tags(event_tag):
                 event = self.__get_event_location(event_record)
                 if event.place:
-                    residences.append(event)
+                    date = event.date
+                    place_list.append((date, event))
+
+        # Sort by date if possible
+        if place_list:
+            residences = [event for _, event in sorted(place_list, key=lambda x: (x[0] if x[0] is not None else ""))]
 
         return residences
     
@@ -246,7 +302,7 @@ class GedcomParser:
 
         return photos, preferred_photos
     
-    def __create_people(self, records0) -> Dict[str, Person]:
+    def _create_people(self, records0) -> Dict[str, Person]:
         """
         Creates a dictionary of Person objects from records.
 
@@ -257,11 +313,15 @@ class GedcomParser:
             Dict[str, Person]: Dictionary of Person objects.
         """
         people = {}
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step(info="Loaded People", target=self.num_people)
         for record in records0('INDI'):
             people[record.xref_id] = self.__create_person(record)
+            if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                self.app_hooks.report_step(info=f"Loaded {people[record.xref_id].name}")
         return people
 
-    def __add_marriages(self, people: Dict[str, Person], records) -> Dict[str, Person]:
+    def _add_marriages(self, people: Dict[str, Person], records) -> Dict[str, Person]:
         """
         Adds marriages and parent/child relationships to people.
 
@@ -272,6 +332,7 @@ class GedcomParser:
         Returns:
             Dict[str, Person]: Updated dictionary of Person objects.
         """
+        idx = 0
         for record in records('FAM'):
             # Get partner list from family record
             # Including non-traditional families by collecting all partners
@@ -300,8 +361,9 @@ class GedcomParser:
             # Add marriage events
             for marriages in record.sub_tags('MARR'):
                 marriage_event = self.__get_event_location(marriages)
+                marriage = Marriage(people_list=partner_person_list, marriage_event=marriage_event)
                 for person in partner_person_list:
-                    person.marriages.append(marriage_event)
+                    person.marriages.append(marriage)
 
             for child in record.sub_tags('CHIL'):
                 if child.xref_id in people:
@@ -313,7 +375,10 @@ class GedcomParser:
                             if record.sub_tag('WIFE') and partner_person.xref_id == record.sub_tag('WIFE').xref_id:
                                 people[child.xref_id].mother = partner_person.xref_id
                                 partner_person.children.append(child.xref_id)
-
+            idx += 1
+            if idx % 1000 == 0:
+                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                    self.app_hooks.report_step(plus_step=1000)
         return people
 
     def parse_people(self) -> Dict[str, Person]:
@@ -344,6 +409,8 @@ class GedcomParser:
         for enc in encodings:
             try:
                 people, families = _count_gedcom_records(str(self.gedcom_file), enc)
+                self.num_people = people
+                self.num_families = families
                 logger.info(f"Fast count people {people} & families {families}")
                 return
             except UnicodeDecodeError:
@@ -362,15 +429,28 @@ class GedcomParser:
         Loads people and places from the GEDCOM file.
         """
 
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Counting people", target=0)
+        self.num_people = 0
+        self.num_families = 0
+        self._fast_count()
         try:
             # Single pass: build people and then addresses
             with GedcomReader(str(self.gedcom_file)) as g:
                 records = g.records0
-                self._cached_people = self.__create_people(records)
-                self._cached_people = self.__add_marriages(self._cached_people, records)
+                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                    self.app_hooks.report_step("Loading people from GED", target=self.num_people)
+                self._cached_people = self._create_people(records)
+                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                    self.app_hooks.report_step("Linking families from GED", target=self.num_families)
+                self._cached_people = self._add_marriages(self._cached_people, records)
+
+                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                    self.app_hooks.report_step("Loading addresses from GED", target=self.num_people + self.num_families)
 
                 # Now extract places
                 # (considered to extract from people, however suspect that might risk missing some record types)
+                iteration = 0
                 self._cached_address_book = FuzzyAddressBook()
                 for indi in records('INDI'):
                     for ev in indi.sub_records:
@@ -378,6 +458,13 @@ class GedcomParser:
                         if plac:
                             place = plac.strip()
                             self._cached_address_book.add_address(place, None)
+                    if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+                        if self.app_hooks.stop_requested():
+                            break
+                    iteration += 1
+                    if iteration % 100 == 0:
+                        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                            self.app_hooks.report_step(set_counter = iteration)
 
                 for fam in records('FAM'):
                     for ev in fam.sub_records:
@@ -385,6 +472,13 @@ class GedcomParser:
                         if plac:
                             place = plac.strip()
                             self._cached_address_book.add_address(place, None)
+                    if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+                        if self.app_hooks.stop_requested():
+                            break
+                    iteration += 1
+                    if iteration % 100 == 0:
+                        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                            self.app_hooks.report_step(set_counter = iteration)
 
         except Exception as e:
             logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")
@@ -421,15 +515,6 @@ class GedcomParser:
                             place = plac.strip()
                             address_list.append(place)
 
-            with GedcomReader(str(self.gedcom_file)) as g:
-                # Individuals: collect PLAC under any event (BIRT/DEAT/BAPM/MARR/etc.)
-                for indi in g.records0("INDI"):
-                    for ev in indi.sub_records:
-                        plac = ev.sub_tag_value("PLAC")
-                        if plac:
-                            place = plac.strip()
-                            address_list.append(place)
-
                 # Families: marriage/divorce places, etc.
                 for fam in g.records0("FAM"):
                     for ev in fam.sub_records:
@@ -437,6 +522,7 @@ class GedcomParser:
                         if plac:
                             place = plac.strip()
                             address_list.append(place)
+
         except Exception as e:
             logger.error(f"Error extracting places from GEDCOM file '{self.gedcom_file}': {e}")
         return address_list
@@ -468,6 +554,7 @@ class GedcomParser:
         Returns: fam_map: dict mapping (father, mother) or (partner1, partner2) to set of children.
         """
         fam_map = {}
+
         # 1. Add families with children (parent-child families)
         for person in people.values():
             father = getattr(person, 'father', None)
@@ -481,6 +568,7 @@ class GedcomParser:
                 if fam_key not in fam_map:
                     fam_map[fam_key] = set()
                 fam_map[fam_key].add(person.xref_id)
+
         # 2. Add partner-only families (no children)
         partner_fam_keys = set()
         for person in people.values():
@@ -519,17 +607,11 @@ class GedcomParser:
                 a, b = fam_key
                 children = fam_map[fam_key]
                 if a and a in people:
-                    if not hasattr(people[a], 'family_spouse'):
-                        people[a].family_spouse = []
                     people[a].family_spouse.append(fam_id)
                 if b and b in people:
-                    if not hasattr(people[b], 'family_spouse'):
-                        people[b].family_spouse = []
                     people[b].family_spouse.append(fam_id)
                 for child in children:
                     if child in people:
-                        if not hasattr(people[child], 'family_child'):
-                            people[child].family_child = []
                         people[child].family_child.append(fam_id)
 
     def _write_gedcom_file(self, people: Dict[str, Person], fam_map: dict, fam_id_map: dict, output_path: Path, photo_dir: Optional[Path]) -> None:
@@ -547,7 +629,7 @@ class GedcomParser:
                 fam_id = fam_id_map[fam_key]
                 self._write_family_gedcom(f, fam_id, fam_key, children)
 
-    def _write_person_gedcom(self, f, person: Person, output_path: Path, photo_subdir: Optional[Path]) -> None:
+    def _write_person_gedcom(self, f: 'TextIO', person: Person, output_path: Path, photo_subdir: Optional[Path]) -> None:
         """
         Write an individual (INDI) record to the GEDCOM file.
         Args:
@@ -556,12 +638,13 @@ class GedcomParser:
             output_path (Path): Path to the GEDCOM file.
             photo_subdir (Optional[Path]): Directory for photos, if any.
         """
-        import shutil
         f.write(f"0 {person.xref_id} INDI\n")
+
         if person.name:
             f.write(f"1 NAME {person.name}\n")
         if person.sex:
             f.write(f"1 SEX {person.sex}\n")
+
         if person.birth:
             f.write("1 BIRT\n")
             if person.birth.date:
@@ -570,6 +653,7 @@ class GedcomParser:
                     f.write(f"2 DATE {date_str}\n")
             if person.birth.place:
                 f.write(f"2 PLAC {person.birth.place}\n")
+
         if person.death:
             f.write("1 DEAT\n")
             if person.death.date:
@@ -578,11 +662,13 @@ class GedcomParser:
                     f.write(f"2 DATE {date_str}\n")
             if person.death.place:
                 f.write(f"2 PLAC {person.death.place}\n")
+
         # Write FAMS (spouse family) and FAMC (child family)
         for fams in getattr(person, 'family_spouse', []):
             f.write(f"1 FAMS {fams}\n")
         for famc in getattr(person, 'family_child', []):
             f.write(f"1 FAMC {famc}\n")
+
         # Write photo if present
         if person.photo and output_path is not None:
             src_photo = Path(person.photo)
@@ -599,15 +685,15 @@ class GedcomParser:
                 file_path = cleaned_name
             try:
                 shutil.copy2(src_photo, dest_photo)
+                f.write("1 OBJE\n")
+                f.write(f"2 FILE {file_path}\n")
+                ext = dest_photo.suffix[1:].lower()
+                if ext:
+                    f.write(f"2 FORM {ext}\n")
             except Exception as e:
                 logger.warning(f"Could not copy photo {src_photo} to {dest_photo}: {e}")
-            f.write("1 OBJE\n")
-            f.write(f"2 FILE {file_path}\n")
-            ext = dest_photo.suffix[1:].lower()
-            if ext:
-                f.write(f"2 FORM {ext}\n")
 
-    def _write_family_gedcom(self, f, fam_id: str, fam_key: tuple, children: set) -> None:
+    def _write_family_gedcom(self, f: 'TextIO', fam_id: str, fam_key: tuple, children: set) -> None:
         """
         Write a family (FAM) record to the GEDCOM file.
         Args:

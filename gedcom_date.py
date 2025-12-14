@@ -18,9 +18,11 @@ from typing import Optional, Union
 from ged4py.date import DateValue
 from ged4py.calendar import GregorianDate
 import logging
+from functools import total_ordering
 
 logger = logging.getLogger(__name__)
 
+@total_ordering
 class GedcomDate:
     """
     Utility class for normalizing and parsing GEDCOM date values.
@@ -63,6 +65,27 @@ class GedcomDate:
             return self.date.kind
         return None
 
+    def parse_str_year(self, year_str: str) -> Optional[int]:
+        """
+        Parse a year string into an integer.
+
+        Args:
+            year_str (str): The year string to parse.
+
+        Returns:
+            int or None: The parsed year as an integer, or None if parsing fails.
+        """
+        match = re.search(r'(-?\d{3,4})', year_str)
+        if match:
+            return int(match.group(1))
+        else:
+            logger.warning('GedcomDate: parse_str_year: unable to parse year string: "%s"', year_str)
+            return None
+        
+    def looks_like_year(self, num: int, min_year: int = 1000, max_year: int = 2100) -> bool:
+        """Return True if num is plausibly a year."""
+        return isinstance(num, int) and min_year <= num <= max_year
+
     def _parse(self, date: Union[DateValue, str, "GedcomDate", None]) -> Union[DateValue, str, None]:
         """
         Parse the input date into a DateValue, or return the string as is.
@@ -83,6 +106,12 @@ class GedcomDate:
             except Exception as e:
                 logger.warning(f"Failed to parse date string '{date}': {e}")
                 return date
+        elif isinstance(date, int):
+            if self.looks_like_year(date):
+                return DateValue.parse(str(date))
+            else:
+                logger.warning(f"GedcomDate: _parse: integer '{date}' does not look like a valid year")
+                return None
         else:
             raise TypeError(f"Unsupported date type: {type(date)}")
 
@@ -187,8 +216,20 @@ class GedcomDate:
         Returns:
             str or None: The year as a string, or None if not found.
         """
-        year = self.year_num
-        return str(year) if year is not None else None
+        if isinstance(self.date, str):
+            return self.date
+        else:
+            kind = getattr(self.date, 'kind', None)
+            date_single = self.single
+            if kind:
+                if hasattr(date_single, 'year_str'):
+                    return date_single.year_str
+                elif isinstance(date_single, str):
+                    return self.parse_str_year(date_single)
+                else:
+                    return None
+            else:
+                return None
 
     def _date_from_phrase(self) -> Optional[Union[GregorianDate, str, tuple]]:
         """
@@ -298,3 +339,31 @@ class GedcomDate:
                 parts.append(month)
             return " ".join(parts)
         return phrase
+
+    def __eq__(self, other):
+        if not isinstance(other, GedcomDate):
+            return NotImplemented
+        a = self.year_num
+        b = other.year_num
+        if a is None and b is None:
+            return True
+        if a is None or b is None:
+            return False
+        return a == b
+
+    def __lt__(self, other):
+        if not isinstance(other, GedcomDate):
+            return NotImplemented
+        a = self.year_num
+        b = other.year_num
+        if a is None and b is None:
+            return False  # or return NotImplemented
+        if a is None:
+            return False  # None is considered greater (sorts last)
+        if b is None:
+            return True   # Any int is less than None (None sorts last)
+        return a < b
+
+    def __hash__(self):
+        # Adjust attributes as appropriate for your class
+        return hash((self.year_num, getattr(self, 'month_num', None), getattr(self, 'day_num', None)))

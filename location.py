@@ -51,7 +51,7 @@ class Location:
         used: int = 0,
         latitude: Optional[float] = None,
         longitude: Optional[float] = None,
-        position: Optional[LatLon] = None,
+        latlon: Optional[LatLon] = None,
         country_code: Optional[str] = None,
         country_name: Optional[str] = None,
         continent: Optional[str] = None,
@@ -72,8 +72,8 @@ class Location:
         self.used = used
         if (latitude is not None and longitude is not None):
             self.latlon = LatLon(latitude, longitude)
-        elif position is not None:
-            self.latlon = position
+        elif latlon is not None:
+            self.latlon = latlon
         else:
             self.latlon = None
         self.country_code = country_code
@@ -164,3 +164,9 @@ class Location:
                 if not getattr(merged, slot) and getattr(other, slot):
                     setattr(merged, slot, getattr(other, slot))
         return merged
+
+    def __str__(self):
+        return f"Location(address={self.address}, latlon={self.latlon})"
+
+    def __repr__(self):
+        return f"Location(address={self.address!r}, latlon={self.latlon!r})"

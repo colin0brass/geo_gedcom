@@ -43,7 +43,9 @@ class GeoConfig:
         Args:
             geo_config_path (Optional[Path]): Path to the configuration YAML file.
         """
-        self.geo_config_path = geo_config_path
+        if geo_config_path is not None and not isinstance(geo_config_path, Path):
+            raise TypeError("geo_config_path must be a pathlib.Path or None")
+        self.__geo_config_path = geo_config_path
         self.countrynames = []
         self.countrynames_lower = []
         self.country_name_to_code_dict = {}
@@ -53,8 +55,6 @@ class GeoConfig:
         self.country_substitutions = {}
         self.default_country = None
         self.fallback_continent_map = {}
-
-        self.__geo_config_path = geo_config_path
 
         if geo_config_path:
             self.load_geo_config()
@@ -116,7 +116,7 @@ class GeoConfig:
             # If pycountry_convert does not have the mapping, check fallback map
             return self.fallback_continent_map.get(country_code)
         except Exception as e:
-            logger.error(f"Error getting continent for country code {country_code}: {e}")
+            logger.error(f"Error getting continent for country code '{country_code}': {e}")
             return None
         
     def substitute_country_name(self, country_name: str) -> Tuple[str, bool]:

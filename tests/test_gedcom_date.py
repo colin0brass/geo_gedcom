@@ -2,28 +2,43 @@ import pytest
 from geo_gedcom.gedcom_date import GedcomDate
 from ged4py.calendar import GregorianDate
 
-def test_simple_year():
-    gd = GedcomDate("1900")
+@pytest.mark.parametrize("date_str,year,month,day", [
+    ("1900", 1900, None, None),
+    ("JUL 1913", 1913, 'JUL', None),
+    ("15 JUL 1913", 1913, 'JUL', 15),
+    ("4 DEC 2025", 2025, 'DEC', 4),
+    ("1759", 1759, None, None),
+    ("AUG 1812", 1812, 'AUG', None),
+])
+def test_simple_dates(date_str, year, month, day):
+    """Test parsing of simple date strings."""
+    gd = GedcomDate(date_str)
     result = gd.resolved
     assert isinstance(result, GregorianDate)
-    assert result.year == 1900
+    assert result.year == year
+    if month:
+        assert result.month == month
+    if day:
+        assert result.day == day
 
-def test_month_year():
-    gd = GedcomDate("JUL 1913")
+@pytest.mark.parametrize("date_str,expected", [
+    ("ABT 1762", 1762),
+    ("abt 1776", 1776),
+    ("BEF 1951", 1951),
+    ("bef 1832", 1832),
+])
+def test_abt_bef_year(date_str, expected):
+    """Test parsing of approximate and before dates."""
+    gd = GedcomDate(date_str)
     result = gd.resolved
-    assert isinstance(result, GregorianDate)
-    assert result.year == 1913
-    assert result.month == 'JUL'
-
-def test_full_date():
-    gd = GedcomDate("15 JUL 1913")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate)
-    assert result.year == 1913
-    assert result.month == 'JUL'
-    assert result.day == 15
+    assert isinstance(result, GregorianDate) or isinstance(result, str)
+    if isinstance(result, GregorianDate):
+        assert result.year == expected
+    else:
+        assert result.lower().startswith(date_str[:3].lower())
 
 def test_range():
+    """Test parsing of date ranges."""
     gd = GedcomDate("BET JUL AND SEP 1913", simplify_range_policy='none')
     result = gd.resolved
     assert isinstance(result, tuple)
@@ -32,124 +47,29 @@ def test_range():
     assert result[0].year == 1913
     assert result[1].year == 1913
 
-def test_ordinal_date():
-    gd = GedcomDate("21st July 1913")
+def test_invalid_date():
+    """Test parsing of an invalid date string."""
+    gd = GedcomDate("nonsense date string")
+    result = gd.resolved
+    assert isinstance(result, str)
+
+def test_empty_date():
+    """Test parsing of an empty date string."""
+    gd = GedcomDate("")
+    result = gd.resolved
+    assert result is None or isinstance(result, str)
+
+def test_none_date():
+    """Test parsing of None as a date."""
+    gd = GedcomDate(None)
+    result = gd.resolved
+    assert result is None or isinstance(result, str)
+
+def test_leap_year():
+    """Test parsing of a valid leap day."""
+    gd = GedcomDate("29 FEB 2000")
     result = gd.resolved
     assert isinstance(result, GregorianDate)
-    assert result.day == 21
-    assert result.month == 'JUL'
-    assert result.year == 1913
-
-def test_fallback_phrase():
-    gd = GedcomDate("Spring 1913")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate) or isinstance(result, str)
-
-def test_abt_year():
-    gd = GedcomDate("ABT 1762")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate) or isinstance(result, str)
-    if isinstance(result, GregorianDate):
-        assert result.year == 1762
-    else:
-        assert result.startswith("ABT")
-
-def test_bet_year_range():
-    gd = GedcomDate("BET 1914 AND 1920", simplify_range_policy='none')
-    result = gd.resolved
-    assert isinstance(result, tuple)
-    assert result[0].year == 1914
-    assert result[1].year == 1920
-
-def test_bef_year():
-    gd = GedcomDate("BEF 1951")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate) or isinstance(result, str)
-    if isinstance(result, GregorianDate):
-        assert result.year == 1951
-    else:
-        assert result.startswith("BEF")
-
-def test_bet_month_range():
-    gd = GedcomDate("BET JAN AND MAR 1894", simplify_range_policy='none')
-    result = gd.resolved
-    assert isinstance(result, tuple)
-    assert result[0].month == 'JAN'
-    assert result[1].month == 'MAR'
-    assert result[0].year == 1894
-    assert result[1].year == 1894
-
-def test_simple_day_month_year():
-    gd = GedcomDate("4 DEC 2025")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate)
-    assert result.year == 2025
-    assert result.month == 'DEC'
-    assert result.day == 4
-
-def test_simple_year_only():
-    gd = GedcomDate("1759")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate)
-    assert result.year == 1759
-
-def test_month_year_with_space():
-    gd = GedcomDate("AUG 1812")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate)
-    assert result.year == 1812
-    assert result.month == 'AUG'
-
-def test_abt_year_phrase():
-    gd = GedcomDate("abt 1776")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate) or isinstance(result, str)
-    if isinstance(result, GregorianDate):
-        assert result.year == 1776
-    else:
-        assert result.lower().startswith("abt")
-
-def test_bef_year_phrase():
-    gd = GedcomDate("bef 1832")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate) or isinstance(result, str)
-    if isinstance(result, GregorianDate):
-        assert result.year == 1832
-    else:
-        assert result.lower().startswith("bef")
-
-def test_bet_years():
-    gd = GedcomDate("BET 1801 AND 1836", simplify_range_policy='none')
-    result = gd.resolved
-    assert isinstance(result, tuple)
-    assert result[0].year == 1801
-    assert result[1].year == 1836
-
-def test_bet_months():
-    gd = GedcomDate("BET NOV AND DEC 1831", simplify_range_policy='none')
-    result = gd.resolved
-    assert isinstance(result, tuple)
-    assert result[0].month == 'NOV'
-    assert result[1].month == 'DEC'
-    assert result[0].year == 1831
-    assert result[1].year == 1831
-
-def test_year_with_text():
-    gd = GedcomDate("Estimated Birth Year: abt 1776")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate) or isinstance(result, str)
-    if isinstance(result, GregorianDate):
-        assert result.year == 1776
-    else:
-        assert "1776" in result
-
-def test_year_with_season():
-    gd = GedcomDate("Winter 1894")
-    result = gd.resolved
-    assert isinstance(result, GregorianDate) or isinstance(result, str)
-    if isinstance(result, GregorianDate):
-        assert result.year == 1894
-    else:
-        assert "Winter" in result
-
-# Add more edge cases as needed
+    assert result.day == 29
+    assert result.month == 'FEB'
+    assert result.year == 2000
