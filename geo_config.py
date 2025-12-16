@@ -106,7 +106,7 @@ class GeoConfig:
         Returns:
             Optional[str]: The continent name if found, else None.
         """
-        if not country_code:
+        if not country_code or country_code.strip().lower() in ('', 'none'):
             return None
         try:
             continent_code = pc.country_alpha2_to_continent_code(country_code)
