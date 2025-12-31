@@ -213,6 +213,8 @@ class GedcomParser:
 
         # Extract residences
         person.residences = self._get_residences(record)
+        # Extract military events
+        person.military = self._get_military(record)
 
         # Grab photos
         photos_all, preferred_photos = self._extract_photos_from_record(record)
@@ -238,7 +240,7 @@ class GedcomParser:
         """
         residences = []
         homelocationtags = ('RESI', 'ADDR', 'OCCU', 'CENS', 'EDUC')
-        otherlocationtags = ('CHR', 'BAPM', 'BASM', 'BAPL', 'IMMI', 'NATU', 'ORDN','ORDI', 'RETI', 
+        otherlocationtags = ('CHR', 'BAPM', 'BASM', 'BARM', 'IMMI', 'NATU', 'ORDN','ORDI', 'RETI', 
                      'EVEN',  'CEME', 'CREM', 'FACT' )
         place_list = []
         for event_tag in homelocationtags + otherlocationtags:
@@ -253,6 +255,32 @@ class GedcomParser:
             residences = [event for _, event in sorted(place_list, key=lambda x: (x[0] if x[0] is not None else ""))]
 
         return residences
+    def _get_military(self, record: Record) -> List[LifeEvent]:
+        """
+        Extracts residence places from a Record.
+
+        Args:
+            record (Record): GEDCOM record.
+
+        Returns:
+            List[LifeEvent]: List of Military events.
+
+        IDs from https://www.fhug.org.uk/kb/kb-article/handling-uncategorised-data-fields/#!
+        """
+        military = []
+        tags = ('_MILT', '_MILTID','_MDCL','_MILTSVC','_MILTSTAT','_MILTRANK','_MILTETD')
+        place_list = []
+        for event_tag in tags:
+            for event_record in record.sub_tags(event_tag):
+                event = self.__get_event_location(event_record)
+                date = event.date
+                place_list.append((date, event))
+
+        # Sort by date if possible
+        if place_list:
+            military = [event for _, event in sorted(place_list, key=lambda x: (x[0] if x[0] is not None else ""))]
+
+        return military
     
     def _extract_photos_from_record(self, record: Record) -> Tuple[List[str], List[str]]:
         """
@@ -439,14 +467,14 @@ class GedcomParser:
             with GedcomReader(str(self.gedcom_file)) as g:
                 records = g.records0
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step("Loading people from GED", target=self.num_people)
+                    self.app_hooks.report_step("Loading people from GED", target=self.num_people,reset_counter=True)
                 self._cached_people = self._create_people(records)
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step("Linking families from GED", target=self.num_families)
+                    self.app_hooks.report_step("Linking families from GED", target=self.num_people + self.num_families)
                 self._cached_people = self._add_marriages(self._cached_people, records)
 
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step("Loading addresses from GED", target=self.num_people + self.num_families)
+                    self.app_hooks.report_step("Loading addresses from GED", target=self.num_people + self.num_families,reset_counter=True)
 
                 # Now extract places
                 # (considered to extract from people, however suspect that might risk missing some record types)

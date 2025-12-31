@@ -186,11 +186,12 @@ class Geocode:
 
         if geo_location:
             continent = self.geo_config.get_continent_for_country_code(country_code)
+            country_code = country_code.upper() if country_code else None
             location = Location(
                 used=1,
                 latitude=geo_location.latitude,
                 longitude=geo_location.longitude,
-                country_code=country_code.upper(),
+                country_code=country_code,
                 country_name=country_name,
                 continent=continent,
                 found_country=found_country,

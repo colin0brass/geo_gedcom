@@ -75,17 +75,22 @@ class GeolocatedGedcom(Gedcom):
         )
 
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step("Reading GED ...")
+            self.app_hooks.report_step("Reading address book ...", target=0) # reset_counter=True
         self.read_full_address_book()
         if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
             if self.app_hooks.stop_requested():
                 logger.info("Geolocation process stopped by user.")
                 return
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Geolocating addresses ...") # reset_counter=True
         self.geolocate_all()
         if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
             if self.app_hooks.stop_requested():
                 logger.info("Geolocation process stopped by user.")
                 return
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Parsed people ...", target=0, reset_counter=True)
+       
         self.parse_people()
         if self.app_hooks and callable(getattr(self.app_hooks, "update_key_value", None)):
             self.app_hooks.update_key_value(key="parsed", value=True)
@@ -109,7 +114,7 @@ class GeolocatedGedcom(Gedcom):
 
         logger.info(f"Geolocating {num_cached_places} cached places...")
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step(f"Matching cached places ...", target=num_cached_places)
+            self.app_hooks.report_step(f"Matching cached places ...", target=num_cached_places, reset_counter=True)
         for idx, (place, data) in enumerate(cached_places.addresses().items(), 1):
             use_place = data.alt_addr if data.alt_addr else place
             location = self.geocoder.lookup_location(use_place)
@@ -125,7 +130,7 @@ class GeolocatedGedcom(Gedcom):
 
         logger.info(f"Geolocating {num_non_cached_places} non-cached places...")
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step(f"Geolocating uncached places", target=num_non_cached_places)
+            self.app_hooks.report_step(f"Geolocating uncached places", target=num_non_cached_places, reset_counter=True)
         for place in non_cached_places.addresses().keys():
             logger.info(f"- {place}...")
         for idx, (place, data) in enumerate(non_cached_places.addresses().items(), 1):
@@ -139,7 +144,7 @@ class GeolocatedGedcom(Gedcom):
             if idx % self.geolocate_all_logger_interval == 0 or idx == num_non_cached_places:
                 logger.info(f"Geolocated {idx} of {num_non_cached_places} non-cached places ...")
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step(info=f"Geolocated {idx} of {num_non_cached_places}")
+                    self.app_hooks.report_step(plus_step=self.geolocate_all_logger_interval, info=f"Geolocated {idx} of {num_non_cached_places}")
             # Save the cache every 100 locations
             if idx % 100 == 0:
                 self.save_location_cache()
@@ -153,7 +158,7 @@ class GeolocatedGedcom(Gedcom):
         """
         super()._parse_people()
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step("Locating People", target=len(self.people))
+            self.app_hooks.report_step("Locating People", target=self.gedcom_parser.num_people, reset_counter=True)
         self.geolocate_people()
 
     # def get_full_address_book(self) -> FuzzyAddressBook:
