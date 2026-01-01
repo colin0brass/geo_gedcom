@@ -222,7 +222,7 @@ class GeoCache:
             'country_code': '',
             'country_name': '',
             'continent': '',
-            'found_country': 'False',
+            'found_country': False,
             'no_result': True,
             'timestamp': time.time(),
             'used': 0
@@ -244,7 +244,7 @@ class GeoCache:
             'country_code': location.country_code,
             'country_name': location.country_name,
             'continent': location.continent,
-            'found_country': 'True' if location.found_country else 'False',
+            'found_country': True if location.found_country else False,
             'used': 1  # Initialize usage count to 1
         }
 
@@ -265,6 +265,6 @@ class GeoCache:
                     'country_code': data.get('country_code', ''),
                     'country_name': data.get('country_name', ''),
                     'continent': data.get('continent', ''),
-                    'found_country': 'False',
+                    'found_country': False,
                     'used': 0
                 }

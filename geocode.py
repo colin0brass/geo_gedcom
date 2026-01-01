@@ -155,7 +155,7 @@ class Geocode:
                 logger.debug(f"Geocodeing {address} country={ccodes} (attempt {attempt}/{max_retries})")
                 geo_location = self.geolocator.geocode(
                     address, country_codes=ccodes, timeout=10,
-                    addressdetails=False, exactly_one=True
+                    addressdetails=True, exactly_one=True
                 )
 
                 # If geopy returned None (HTTP 200 but no match), do not retry — it's not a transient error.
@@ -185,6 +185,11 @@ class Geocode:
                 geo_location = None
 
         if geo_location:
+            if country_name is None and 'country' in geo_location.raw.get('address', {}):
+                country_name = geo_location.raw['address']['country']
+                if 'country_code' in geo_location.raw.get('address', {}):
+                    country_code = geo_location.raw['address']['country_code'].upper()
+                    found_country = True
             continent = self.geo_config.get_continent_for_country_code(country_code)
             country_code = country_code.upper() if country_code else None
             location = Location(
@@ -260,7 +265,8 @@ class Geocode:
                 found_in_cache = True
                 location = Location.from_dict(cache_entry)
                 if cache_entry.get('found_country', False) == False or cache_entry.get('country_name', '') == '':
-                    if found_country:
+                    # Not sure this is needed
+                    if cache_entry.get('found_country', False):
                         logger.info(f"Found country in cache for {use_place_name}, but it was not marked as found.")
                         location.found_country = True
                         location.country_code = country_code.upper()
@@ -269,7 +275,7 @@ class Geocode:
                         self.geo_cache.add_geo_cache_entry(place, location)
                     else:
                         logger.info(f"Unable to add country from geo cache lookup for {use_place_name}")
-                if not found_country:
+                if not location.found_country:
                     logger.info(f"Country not found in cache for {use_place_name}")
 
         if not found_in_cache:
