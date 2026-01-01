@@ -246,7 +246,6 @@ class GedcomParser:
         # Extract military events
         # IDs from https://www.fhug.org.uk/kb/kb-article/handling-uncategorised-data-fields/#!
         military_tags = ('_MILT', '_MILTID','_MDCL','_MILTSVC','_MILTSTAT','_MILTRANK','_MILTETD')
-
         person.military = self._get_event_list(record, military_tags)
 
         # Grab photos
