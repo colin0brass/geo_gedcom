@@ -97,8 +97,6 @@ class FuzzyAddressBook:
             # If a similar (or identical) address exists, create or update the entry with the same alt_addr
             existing_location = self.__addresses[existing_key]
             if existing_key == address: # exact match; use existing location and increment usage
-                if location is None:
-                    logger.warning(f"Exact match found for address '{address}' but no location provided; using existing location.")
                 if isinstance(existing_location, Location):
                     location = existing_location.merge(location)
                     location.used = existing_location.used + 1
