@@ -151,21 +151,37 @@ class Person:
             description = f'Died {year_num}' if year_num else 'Died Unknown'
         return description, year_num
     
+    def get_best_location_and_type(self) -> tuple[Optional[Location], Optional[str]]:
+        """
+        Returns the best known location for the person and its type.
+
+        Returns:
+            tuple[Optional[Location], Optional[str]]: Best known location and its type.
+        """
+        best_location: Optional[Location] = None
+        location_type: Optional[str] = None
+        if self.birth and self.birth.location and self.birth.location.latlon and self.birth.location.latlon.hasLocation():
+            best_location = self.birth.location
+            location_type = 'Birth'
+        elif self.death and self.death.location and self.death.location.latlon and self.death.location.latlon.hasLocation():
+            best_location = self.death.location
+            location_type = 'Death'
+        return best_location, location_type
+    
     def bestlocation(self):
         """
         Returns the best known location for the person as [latlon, description].
         """
         best = ["Unknown", ""]
-        if self.birth and self.birth.location:
+
+        best_location, location_type = self.get_best_location_and_type()
+
+        if best_location and best_location.latlon and best_location.latlon.hasLocation():
             best = [
-                str(self.birth.location.latlon),
-                f"{self.birth.place} (Born)" if self.birth.place else "",
+                str(best_location.latlon),
+                f"{best_location.address} ({location_type.capitalize()})" if best_location.address else "",
             ]
-        elif self.death and self.death.location:
-            best = [
-                str(self.death.location.latlon),
-                f"{self.death.place} (Died)" if self.death.place else "",
-            ]
+
         return best
 
     def bestLatLon(self):
@@ -173,20 +189,12 @@ class Person:
         Returns the best known LatLon for the person (birth, then death, else None).
         """
         best = LatLon(None, None)
-        if (
-            self.birth
-            and self.birth.location
-            and self.birth.location.latlon
-            and self.birth.location.latlon.hasLocation()
-        ):
-            best = self.birth.location.latlon
-        elif (
-            self.death
-            and self.death.location
-            and self.death.location.latlon
-            and self.death.location.latlon.hasLocation()
-        ):
-            best = self.death.location.latlon
+        
+        best_location, location_type = self.get_best_location_and_type()
+
+        if best_location and best_location.latlon:
+            best = best_location.latlon
+            
         return best
 
     def _check_birth_death_problems(self, born: Optional[int], died: Optional[int], max_age: int) -> list[str]:
