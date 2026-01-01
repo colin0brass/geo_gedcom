@@ -176,7 +176,7 @@ class GedcomParser:
                 date = date,
                 record=record,
                 what=record.tag)
-            if self.app_hooks and callable(getattr(self.app_hooks, "add_time_reference", None)):
+            if date and self.app_hooks and callable(getattr(self.app_hooks, "add_time_reference", None)):
                 self.app_hooks.add_time_reference(event.date)
         return event
 
