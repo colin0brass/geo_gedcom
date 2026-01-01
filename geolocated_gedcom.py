@@ -161,16 +161,6 @@ class GeolocatedGedcom(Gedcom):
             self.app_hooks.report_step("Locating People", target=self.gedcom_parser.num_people, reset_counter=True)
         self.geolocate_people()
 
-    # def get_full_address_book(self) -> FuzzyAddressBook:
-    #     """
-    #     Get all places from the GEDCOM file.
-
-    #     Returns:
-    #         FuzzyAddressBook: Address book of places.
-    #     """
-    #     self.address_book = self.gedcom_parser.get_full_address_book()
-    #     return self.address_book
-
     def read_full_address_book(self) -> None:
         """
         Get all places from the GEDCOM file.
@@ -178,7 +168,6 @@ class GeolocatedGedcom(Gedcom):
         super().read_full_address_list()
         for place in self.address_list:
             if not self.address_book.get_address(place):
-                # location = self.geocoder.lookup_location(place)
                 location = None
                 self.address_book.add_address(place, location)
 

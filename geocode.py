@@ -155,13 +155,20 @@ class Geocode:
                 logger.debug(f"Geocodeing {address} country={ccodes} (attempt {attempt}/{max_retries})")
                 geo_location = self.geolocator.geocode(
                     address, country_codes=ccodes, timeout=10,
-                    addressdetails=True, exactly_one=True
+                    addressdetails=True, exactly_one=True,
+                    language="en"
                 )
 
                 # If geopy returned None (HTTP 200 but no match), do not retry — it's not a transient error.
                 if geo_location is None:
                     logger.debug("No geocoding result for %r (not retrying)", place)
-                    break
+                else:
+                    if not country_name or country_name.lower() == 'none':
+                        # Try to infer country from geocoding result
+                        if 'country' in geo_location.raw.get('address', {}):
+                            country_name = geo_location.raw['address']['country']
+                            country_code = geo_location.raw['address'].get('country_code', '').upper()
+                            found_country = True
                 break  # Successful geocode, exit retry loop
             except (GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable, AdapterHTTPError, requests.RequestException) as e:
                 # Determine HTTP status when available and treat 5xx as transient (retryable) errors
@@ -185,13 +192,7 @@ class Geocode:
                 geo_location = None
 
         if geo_location:
-            if country_name is None and 'country' in geo_location.raw.get('address', {}):
-                country_name = geo_location.raw['address']['country']
-                if 'country_code' in geo_location.raw.get('address', {}):
-                    country_code = geo_location.raw['address']['country_code'].upper()
-                    found_country = True
             continent = self.geo_config.get_continent_for_country_code(country_code)
-            country_code = country_code.upper() if country_code else None
             location = Location(
                 used=1,
                 latitude=geo_location.latitude,
@@ -255,7 +256,6 @@ class Geocode:
             use_place_name, cache_entry = self.geo_cache.lookup_geo_cache_entry(place)
 
         if cache_entry and cache_entry.get("no_result"):
-            logger.info(f"Place '{place}' marked as no_result in cache; skipping geocoding.")
             return None
         
         (place_with_country, country_code, country_name, found_country) = self.geo_config.get_place_and_countrycode(use_place_name)
