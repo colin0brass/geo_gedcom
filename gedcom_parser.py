@@ -180,6 +180,33 @@ class GedcomParser:
                 self.app_hooks.add_time_reference(event.date)
         return event
 
+    def _get_event_list(self, record: Record, tag: Union[str, List[str]]) -> List[LifeEvent]:
+        """
+        Extracts a list of events from a Record.
+
+        Args:
+            record (Record): GEDCOM record.
+            tag (Union[str, List[str]]): Event tag or list of tags.
+        Returns:
+            List[LifeEvent]: List of events.
+        """
+        events = []
+        if isinstance(tag, str):
+            tags = [tag]
+        else:
+            tags = tag
+        for t in tags:
+            for event_record in record.sub_tags(t):
+                event = self.__get_event_location(event_record)
+                if event.place:
+                    events.append(event)
+
+        # Sort by date if possible
+        if events:
+            events = sorted(events, key=lambda x: (x.date if x.date is not None else ""))
+
+        return events
+
     def __create_person(self, record: Record) -> Person:
         """
         Creates a Person object from a record.
@@ -190,7 +217,6 @@ class GedcomParser:
         Returns:
             Person: Person object.
         """
-
 
         person = Person(record.xref_id)
         person.name = ''
@@ -212,9 +238,16 @@ class GedcomParser:
         person.title = title.value if title else ""
 
         # Extract residences
-        person.residences = self._get_residences(record)
+        home_location_tags = ('RESI', 'ADDR', 'OCCU', 'CENS', 'EDUC')
+        other_location_tags = ('CHR', 'BAPM', 'BASM', 'BAPL', 'BARM', 'IMMI', 'NATU', 'ORDN','ORDI', 'RETI', 
+                             'EVEN',  'CEME', 'CREM', 'FACT' )
+        person.residences = self._get_event_list(record, home_location_tags + other_location_tags)
+
         # Extract military events
-        person.military = self._get_military(record)
+        # IDs from https://www.fhug.org.uk/kb/kb-article/handling-uncategorised-data-fields/#!
+        military_tags = ('_MILT', '_MILTID','_MDCL','_MILTSVC','_MILTSTAT','_MILTRANK','_MILTETD')
+
+        person.military = self._get_event_list(record, military_tags)
 
         # Grab photos
         photos_all, preferred_photos = self._extract_photos_from_record(record)
@@ -228,60 +261,6 @@ class GedcomParser:
 
         return person
 
-    def _get_residences(self, record: Record) -> List[LifeEvent]:
-        """
-        Extracts residence places from a Record.
-
-        Args:
-            record (Record): GEDCOM record.
-
-        Returns:
-            List[LifeEvent]: List of residence events.
-        """
-        residences = []
-        homelocationtags = ('RESI', 'ADDR', 'OCCU', 'CENS', 'EDUC')
-        otherlocationtags = ('CHR', 'BAPM', 'BASM', 'BARM', 'IMMI', 'NATU', 'ORDN','ORDI', 'RETI', 
-                     'EVEN',  'CEME', 'CREM', 'FACT' )
-        place_list = []
-        for event_tag in homelocationtags + otherlocationtags:
-            for event_record in record.sub_tags(event_tag):
-                event = self.__get_event_location(event_record)
-                if event.place:
-                    date = event.date
-                    place_list.append((date, event))
-
-        # Sort by date if possible
-        if place_list:
-            residences = [event for _, event in sorted(place_list, key=lambda x: (x[0] if x[0] is not None else ""))]
-
-        return residences
-    def _get_military(self, record: Record) -> List[LifeEvent]:
-        """
-        Extracts residence places from a Record.
-
-        Args:
-            record (Record): GEDCOM record.
-
-        Returns:
-            List[LifeEvent]: List of Military events.
-
-        IDs from https://www.fhug.org.uk/kb/kb-article/handling-uncategorised-data-fields/#!
-        """
-        military = []
-        tags = ('_MILT', '_MILTID','_MDCL','_MILTSVC','_MILTSTAT','_MILTRANK','_MILTETD')
-        place_list = []
-        for event_tag in tags:
-            for event_record in record.sub_tags(event_tag):
-                event = self.__get_event_location(event_record)
-                date = event.date
-                place_list.append((date, event))
-
-        # Sort by date if possible
-        if place_list:
-            military = [event for _, event in sorted(place_list, key=lambda x: (x[0] if x[0] is not None else ""))]
-
-        return military
-    
     def _extract_photos_from_record(self, record: Record) -> Tuple[List[str], List[str]]:
         """
         Extracts all valid photo file paths from a GEDCOM record.
@@ -510,20 +489,6 @@ class GedcomParser:
 
         except Exception as e:
             logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")
-
-    # def get_full_address_book(self) -> FuzzyAddressBook:
-    #     """
-    #     Returns address book of all places found in the GEDCOM file.
-
-    #     Returns:
-    #         FuzzyAddressBook: Address book of places.
-    #     """
-
-    #     # Return cached if available
-    #     if self._cached_address_book:
-    #         return self._cached_address_book
-    #     self._load_people_and_places()
-    #     return self._cached_address_book if self._cached_address_book else FuzzyAddressBook()
 
     def get_full_address_list(self) -> List[str]:
         """
