@@ -461,7 +461,7 @@ class GedcomParser:
                 self._cached_people = self._add_marriages(self._cached_people, records)
 
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step("Loading addresses from GED", target=self.num_people + self.num_families,reset_counter=True, plus_step=0)
+                    self.app_hooks.report_step("Loading addresses from GED", target=self.num_people + self.num_families, reset_counter=True, plus_step=0)
                 # Now extract places
                 # (considered to extract from people, however suspect that might risk missing some record types)
                 iteration = 0
