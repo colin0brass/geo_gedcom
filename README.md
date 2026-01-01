@@ -3,6 +3,7 @@
 This module provides core functionality for parsing, filtering, geocoding, and exporting GEDCOM genealogical data. It is designed for modularity, maintainability, and robust handling of genealogical records, including people, places, events, and photos.
 
 ## Requirements
+- Python 3.8 or newer
 - [ged4py](https://pypi.org/project/ged4py/)
 - [rapidfuzz](https://pypi.org/project/rapidfuzz/)
 - [unidecode](https://pypi.org/project/Unidecode/)
@@ -10,6 +11,23 @@ This module provides core functionality for parsing, filtering, geocoding, and e
 - [pycountry-convert](https://pypi.org/project/pycountry-convert/)
 - [bpemb](https://pypi.org/project/bpemb/)
 - [pytest](https://pypi.org/project/pytest/) (for testing)
+- [pytest-cov](https://pypi.org/project/pytest-cov/) (for test coverage)
+
+## Installation
+
+Clone the repository and install dependencies:
+
+```sh
+git clone https://github.com/YOUR_ORG/gedcom-to-visualmap.git
+cd gedcom-to-visualmap/gedcom-to-map/geo_gedcom
+pip install -r requirements.txt
+```
+
+Or install directly with pip:
+
+```sh
+pip install ged4py rapidfuzz unidecode pycountry pycountry-convert bpemb pyyaml
+```
 
 ## Key Features
 - **GEDCOM Parsing:** Efficiently parses GEDCOM files and extracts individuals, families, events, and places.
