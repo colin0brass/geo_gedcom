@@ -76,7 +76,7 @@ class Location:
             self.latlon = latlon
         else:
             self.latlon = None
-        self.country_code = country_code
+        self.country_code = country_code.upper() if country_code else None
         self.country_name = country_name
         self.continent = continent
         self.found_country = found_country
