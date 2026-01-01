@@ -193,7 +193,6 @@ class GeoCache:
                     del self.geo_cache[address_lower]  # Remove to allow re-geocoding
                     return use_addr_name, None
                 else:
-                    logger.info(f"Address '{address}' marked as no_result; skipping geocoding.")
                     return use_addr_name, cache_entry
                 
             if alt_addr_name is not None:
