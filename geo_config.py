@@ -29,7 +29,6 @@ class GeoConfig:
         country_name_to_code_dict (Dict[str, str]): Mapping of country names to ISO codes.
         country_code_to_name_dict (Dict[str, str]): Mapping of ISO codes to country names.
         country_code_to_continent_dict (Dict[str, str]): Mapping of ISO codes to continent names.
-        country_substitutions (Dict[str, str]): Substitution mapping for country names.
         country_substitutions_lower (Dict[str, str]): Lowercase-keyed substitution mapping.
         countrynames_dict_lower (Dict[str, str]): Lowercase-keyed country name mapping.
         default_country (str): Default country name.
@@ -52,7 +51,7 @@ class GeoConfig:
         self.country_code_to_continent_dict = {}
         self.country_code_to_name_dict = {}
         self.country_code_to_continent_dict = {}
-        self.country_substitutions = {}
+        self.country_substitutions_lower = {}
         self.default_country = None
         self.fallback_continent_map = {}
 
@@ -76,7 +75,7 @@ class GeoConfig:
         else:
             self.__geo_config = {}
 
-        self.country_substitutions = self.__geo_config.get('country_substitutions', {})
+        country_substitutions = self.__geo_config.get('country_substitutions', {})
         self.default_country = self.__geo_config.get('default_country', '')
         additional_countries_codes_dict_to_add = self.__geo_config.get('additional_countries_codes_dict_to_add', {})
         self.fallback_continent_map = self.__geo_config.get('fallback_continent_map', {})
@@ -93,7 +92,7 @@ class GeoConfig:
         self.country_code_to_name_dict = {v: k for k, v in self.country_name_to_code_dict.items()}
         self.country_code_to_continent_dict = {code: self.country_code_to_name_dict.get(code) for code in self.country_code_to_name_dict.keys()}
 
-        self.country_substitutions_lower = {k.lower(): v for k, v in self.country_substitutions.items()}
+        self.country_substitutions_lower = {k.lower(): v for k, v in country_substitutions.items()}
         self.countrynames_dict_lower = {name.lower(): name for name in self.countrynames}
 
     def get_continent_for_country_code(self, country_code: str) -> Optional[str]:
@@ -131,9 +130,6 @@ class GeoConfig:
         """
         if not country_name:
             return country_name, False
-        substituted = self.country_substitutions.get(country_name)
-        if substituted:
-            return substituted, True
         substituted = self.country_substitutions_lower.get(country_name.lower())
         if substituted:
             return substituted, True
@@ -190,7 +186,6 @@ class GeoConfig:
         else:
             country_name, found_country = self.get_country_name(last_place_element)
             if found_country:
-                logger.info(f"Found country '{country_name}' for place '{place}'")
                 found = True
 
         if not found and self.default_country.lower() != 'none':
