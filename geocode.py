@@ -152,7 +152,7 @@ class Geocode:
             try:
                 self._last_geocode_time = time.time()
                 ccodes = country_code if (country_code and country_code.lower() != 'none') else None
-                logger.debug(f"Geocodeing {address} country={ccodes} (attempt {attempt}/{max_retries})")
+                logger.debug(f"Geocoding {address} country={ccodes} (attempt {attempt}/{max_retries})")
                 geo_location = self.geolocator.geocode(
                     address, country_codes=ccodes, timeout=10,
                     addressdetails=True, exactly_one=True,
