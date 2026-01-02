@@ -38,10 +38,10 @@ def test_parse_people(minimal_gedcom_file):
     person = next(iter(people.values()))
     assert person.name == "John Doe"
     assert person.sex == "M"
-    assert person.birth is not None
-    assert person.birth.place == "London, England"
-    assert person.death is not None
-    assert person.death.place == "London, England"
+    assert person.get_event('birth') is not None
+    assert person.get_event('birth').place == "London, England"
+    assert person.get_event('death') is not None
+    assert person.get_event('death').place == "London, England"
 
 def test_parse_people_no_file(tmp_path):
     # Should not raise, but return empty dict

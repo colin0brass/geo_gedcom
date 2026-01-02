@@ -232,8 +232,8 @@ class GedcomParser:
             person.maidenname = 'Unknown'
             person.name = 'Unknown'
         person.sex = record.sex
-        person.birth = self.__get_event_location(record.sub_tag('BIRT'))
-        person.death = self.__get_event_location(record.sub_tag('DEAT'))
+        person.add_event('birth', self.__get_event_location(record.sub_tag('BIRT')))
+        person.add_event('death', self.__get_event_location(record.sub_tag('DEAT')))
         title = record.sub_tag("TITL")
         person.title = title.value if title else ""
 
@@ -241,12 +241,12 @@ class GedcomParser:
         home_location_tags = ('RESI', 'ADDR', 'OCCU', 'CENS', 'EDUC')
         other_location_tags = ('CHR', 'BAPM', 'BASM', 'BAPL', 'BARM', 'IMMI', 'NATU', 'ORDN','ORDI', 'RETI', 
                              'EVEN',  'CEME', 'CREM', 'FACT' )
-        person.residences = self._get_event_list(record, home_location_tags + other_location_tags)
+        person.add_events('residence', self._get_event_list(record, home_location_tags + other_location_tags))
 
         # Extract military events
         # IDs from https://www.fhug.org.uk/kb/kb-article/handling-uncategorised-data-fields/#!
         military_tags = ('_MILT', '_MILTID','_MDCL','_MILTSVC','_MILTSTAT','_MILTRANK','_MILTETD')
-        person.military = self._get_event_list(record, military_tags)
+        person.add_events('military', self._get_event_list(record, military_tags))
 
         # Grab photos
         photos_all, preferred_photos = self._extract_photos_from_record(record)
@@ -375,7 +375,7 @@ class GedcomParser:
                 marriage_event = self.__get_event_location(marriages)
                 marriage = Marriage(people_list=partner_person_list, marriage_event=marriage_event)
                 for person in partner_person_list:
-                    person.marriages.append(marriage)
+                    person.add_events('marriage', marriage)
 
             for child in record.sub_tags('CHIL'):
                 if child.xref_id in people:
@@ -645,24 +645,24 @@ class GedcomParser:
         if person.sex:
             f.write(f"1 SEX {person.sex}\n")
 
-        if person.birth:
+        birth_event = person.get_event('birth')
+        death_event = person.get_event('death')
+        if birth_event:
             f.write("1 BIRT\n")
-            if person.birth.date:
-                date_str = person.birth.date.resolved
+            if birth_event.date:
+                date_str = birth_event.date.resolved
                 if date_str:
                     f.write(f"2 DATE {date_str}\n")
-            if person.birth.place:
-                f.write(f"2 PLAC {person.birth.place}\n")
-
-        if person.death:
+            if birth_event.place:
+                f.write(f"2 PLAC {birth_event.place}\n")
+        if death_event:
             f.write("1 DEAT\n")
-            if person.death.date:
-                date_str = person.death.date.resolved
+            if death_event.date:
+                date_str = death_event.date.resolved
                 if date_str:
                     f.write(f"2 DATE {date_str}\n")
-            if person.death.place:
-                f.write(f"2 PLAC {person.death.place}\n")
-
+            if death_event.place:
+                f.write(f"2 PLAC {death_event.place}\n")
         # Write FAMS (spouse family) and FAMC (child family)
         for fams in getattr(person, 'family_spouse', []):
             f.write(f"1 FAMS {fams}\n")

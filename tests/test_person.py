@@ -1,12 +1,18 @@
 import pytest
 from geo_gedcom import Person
+from geo_gedcom import LifeEvent
+from geo_gedcom.gedcom_date import GedcomDate
 
 @pytest.fixture
-def mock_event():
-    def _event(year=None, month=None, place=None, lat=None, lon=None):
-        date = type('dt', (), {'year_num': year, 'single': type('sd', (), {'month': month})() if month else None})()
-        latlon = type('ll', (), {'lat': lat, 'lon': lon})() if lat is not None and lon is not None else None
-        return type('evt', (), {'date': date, 'place': place, 'latlon': latlon})()
+def mock_event() -> callable:
+    def _event(year=None, month=None, place=None, lat=None, lon=None) -> LifeEvent:
+        date_str = f"{year} {month}" if year and month else str(year) if year else ""
+        date = GedcomDate(date_str if date_str.strip() else None)
+        latlon = None
+        if lat is not None and lon is not None:
+            from geo_gedcom import LatLon
+            latlon = LatLon(lat, lon)
+        return LifeEvent(place=place, date=date, latlon=latlon)
     return _event
 
 def test_person_init():
@@ -33,50 +39,50 @@ def test_person_multiple_names(name, firstname, surname, maidenname):
 
 def test_person_birth_full_date_place(mock_event):
     p = Person("I635")
-    p.birth = mock_event(year=1893, month="DEC", place="Ryde, Isle of Wight, England")
-    assert p.birth.date.year_num == 1893
-    assert p.birth.place == "Ryde, Isle of Wight, England"
-    assert p.birth.date.single.month == "DEC"
+    p.add_event('birth', mock_event(year=1893, month="DEC", place="Ryde, Isle of Wight, England"))
+    assert p.get_event('birth').date.year_num == 1893
+    assert p.get_event('birth').place == "Ryde, Isle of Wight, England"
+    assert p.get_event('birth').date.single.month == "DEC"
 
 @pytest.mark.parametrize("year", [1893, 1894])
 def test_person_birth_year_only(mock_event, year):
     p = Person("I635")
-    p.birth = mock_event(year=year, place="Ryde, Isle of Wight, England")
-    assert p.birth.date.year_num == year
+    p.add_event('birth', mock_event(year=year, place="Ryde, Isle of Wight, England"))
+    assert p.get_event('birth').date.year_num == year
 
 def test_person_birth_range(mock_event):
     p = Person("I635")
-    p.birth = mock_event(year=1894, place="Isle of Wight, England")
-    assert p.birth.place == "Isle of Wight, England"
+    p.add_event('birth', mock_event(year=1894, place="Isle of Wight, England"))
+    assert p.get_event('birth').place == "Isle of Wight, England"
 
 def test_person_residence_event(mock_event):
     p = Person("I635")
-    p.residences = [mock_event(year=1925, place="Berkshire, England")]
-    assert p.residences[0].date.year_num == 1925
-    assert p.residences[0].place == "Berkshire, England"
+    p.add_event('residence', mock_event(year=1925, place="Berkshire, England"))
+    assert p.get_event('residence').date.year_num == 1925
+    assert p.get_event('residence').place == "Berkshire, England"
 
 def test_person_military_event(mock_event):
     p = Person("I635")
-    p.military = [mock_event(year=1916)]
-    assert p.military[0].date.year_num == 1916
+    p.add_event('military', mock_event(year=1916))
+    assert p.get_event('military').date.year_num == 1916
 
 def test_person_arrival_departure_events(mock_event):
     p = Person("I635")
-    p.arrivals = [mock_event(year=1934, place="London, London, England")]
-    p.departures = [mock_event(year=1934, place="England")]
-    assert p.arrivals[0].place == "London, London, England"
-    assert p.departures[0].place == "England"
+    p.add_event('arrival', mock_event(year=1934, place="London, London, England"))
+    p.add_event('departure', mock_event(year=1934, place="England"))
+    assert p.get_event('arrival').place == "London, London, England"
+    assert p.get_event('departure').place == "England"
 
 def test_person_baptism_event(mock_event):
     p = Person("I635")
-    p.baptism = mock_event(year=1894, place="Ryde, Isle of Wight, England")
-    assert p.baptism.place == "Ryde, Isle of Wight, England"
+    p.add_event('baptism', mock_event(year=1894, place="Ryde, Isle of Wight, England"))
+    assert p.get_event('baptism').place == "Ryde, Isle of Wight, England"
 
 def test_person_death_event(mock_event):
     p = Person("I635")
-    p.death = mock_event(year=1972, place="Winchester, Hampshire, England")
-    assert p.death.date.year_num == 1972
-    assert p.death.place == "Winchester, Hampshire, England"
+    p.add_event('death', mock_event(year=1972, place="Winchester, Hampshire, England"))
+    assert p.get_event('death').date.year_num == 1972
+    assert p.get_event('death').place == "Winchester, Hampshire, England"
 
 def test_person_family_relationships():
     p = Person("I635")
@@ -87,15 +93,15 @@ def test_person_family_relationships():
 
 def test_person_geocoded_event(mock_event):
     p = Person("I635")
-    p.birth = mock_event(year=1893, place="Ryde, Isle of Wight, England", lat=50.674908, lon=-1.301753)
-    assert p.birth.latlon.lat == 50.674908
-    assert p.birth.latlon.lon == -1.301753
+    p.add_event('birth', mock_event(year=1893, place="Ryde, Isle of Wight, England", lat=50.674908, lon=-1.301753))
+    assert p.get_event('birth').location.latlon.lat == 50.674908
+    assert p.get_event('birth').location.latlon.lon == -1.301753
 
 def test_person_empty_fields():
     """Test Person with no events or relationships."""
     p = Person("I999")
     assert p.name is None
-    assert p.birth is None
-    assert p.residences == []
+    assert p.get_event('birth') is None
+    assert p.get_event('residence') is None
     assert p.family_spouse == []
     assert p.family_child == []

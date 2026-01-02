@@ -179,13 +179,15 @@ class GeolocatedGedcom(Gedcom):
             found_location = False
             if  self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
                 self.app_hooks.report_step(info=f"Reviewing {getattr(person, 'name', '-Unknown-')}")
-            if person.birth:
-                event = self.__geolocate_event(person.birth)
-                person.birth.location = event.location
+            birth_event = person.get_event('birth')
+            if birth_event:
+                event = self.__geolocate_event(birth_event)
+                birth_event.location = event.location
                 if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
                     person.latlon = event.location.latlon
                     found_location = True
-            for marriage in person.marriages:
+            marriages = person.get_events('marriage')
+            for marriage in marriages:
                 marriage_event = marriage.event if marriage.event else None
                 if not marriage_event:
                     continue
@@ -194,14 +196,16 @@ class GeolocatedGedcom(Gedcom):
                 if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
                     person.latlon = event.location.latlon
                     found_location = True
-            if person.death:
-                event = self.__geolocate_event(person.death)
-                person.death.location = event.location
+            death_event = person.get_event('death')
+            if death_event:
+                event = self.__geolocate_event(death_event)
+                death_event.location = event.location
                 if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
                     person.latlon = event.location.latlon
                     found_location = True
-            if person.residences:
-                for residence in person.residences:
+            residence_events = person.get_events('residence')
+            if residence_events:
+                for residence in residence_events:
                     event = self.__geolocate_event(residence)
                     residence.location = event.location
                     if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():

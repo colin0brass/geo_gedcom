@@ -71,9 +71,9 @@ class Person:
     __slots__ = ['xref_id',
                  'name', 'firstname', 'surname', 'maidenname',
                  'sex','title',
-                 'birth', 'death',
-                 'baptism', 'marriages', 'residences', 'military',
-                 'arrivals', 'departures',
+                 '__birth', '__death',
+                 '__baptism', '__marriages', '__residences', '__military',
+                 '__arrivals', '__departures',
                  'father', 'mother', 'children', 'partners', 
                  'age', 'photos_all', 'photo', 
                  'location', 'latlon', 
@@ -95,16 +95,16 @@ class Person:
         self.sex : Optional[str] = None
         self.title : Optional[str] = None
 
-        self.birth : LifeEvent = None
-        self.death : LifeEvent = None
+        self.__birth : List[LifeEvent] = []
+        self.__death : List[LifeEvent] = []
 
-        self.baptism : List[LifeEvent] = []
-        self.marriages : List[Marriage] = []
-        self.residences : List[LifeEvent] = []
-        self.military : List[LifeEvent] = []
+        self.__baptism : List[LifeEvent] = []
+        self.__marriages : List[Marriage] = []
+        self.__residences : List[LifeEvent] = []
+        self.__military : List[LifeEvent] = []
 
-        self.arrivals : List[LifeEvent] = []
-        self.departures : List[LifeEvent] = []
+        self.__arrivals : List[LifeEvent] = []
+        self.__departures : List[LifeEvent] = []
 
         self.father : Person = None
         self.mother : Person = None
@@ -122,6 +122,91 @@ class Person:
         self.family_spouse : List[str] = []
         self.family_child : List[str] = []
 
+    def add_events(self, event_type: str, life_events: Union[LifeEvent, List[LifeEvent], Marriage, List[Marriage]]):
+        """
+        Adds one or more life events to the person based on the event type.
+
+        Args:
+            life_events (LifeEvent or List[LifeEvent]): One or more life events to add.
+            event_type (str): Type of event ('birth', 'marriage', 'death', 'baptism', 'residence', 'military', 'arrival', 'departure').
+        """
+        event_type = event_type.lower()
+        if not isinstance(life_events, list):
+            life_events = [life_events]
+        if event_type == 'birth' and life_events:
+            self.__birth += life_events
+        if event_type == 'marriage' and life_events:
+            self.__marriages += life_events
+        elif event_type == 'death' and life_events:
+            self.__death += life_events
+        elif event_type == 'baptism':
+            self.__baptism += life_events
+        elif event_type == 'residence':
+            self.__residences += life_events
+        elif event_type == 'military':
+            self.__military += life_events
+        elif event_type == 'arrival':
+            self.__arrivals += life_events
+        elif event_type == 'departure':
+            self.__departures += life_events
+        else:
+            logger.warning(f"Unknown event type or empty events provided: {event_type}")
+
+    def add_event(self, event_type: str, life_event: Optional[Union[LifeEvent, Marriage]]):
+        """
+        Adds a single life event to the person based on the event type.
+
+        Args:
+            life_event (LifeEvent): A life event to add.
+            event_type (str): Type of event ('birth', 'death', 'baptism', 'residence', 'military', 'arrival', 'departure').
+        """
+        if not isinstance(life_event, (LifeEvent, Marriage, type(None))):
+            logger.warning(f"Invalid life event provided: {life_event}")
+            return
+        self.add_events(event_type, [life_event])
+
+    def get_events(self, event_type: str) -> Union[LifeEvent, List[LifeEvent]]:
+        """
+        Returns a list of life events for the specified event type.
+
+        Args:
+            event_type (str): Type of event ('birth', 'marriage', 'death', 'baptism', 'residence', 'military', 'arrival', 'departure').
+        Returns:
+            List[LifeEvent]: List of life events of the specified type.
+        """
+        event_type = event_type.lower()
+        if event_type == 'birth':
+            return self.__birth
+        elif event_type == 'marriage':
+            return self.__marriages
+        elif event_type == 'death':
+            return self.__death
+        elif event_type == 'baptism':
+            return self.__baptism
+        elif event_type == 'residence':
+            return self.__residences
+        elif event_type == 'military':
+            return self.__military
+        elif event_type == 'arrival':
+            return self.__arrivals
+        elif event_type == 'departure':
+            return self.__departures
+        else:
+            logger.warning(f"Unknown event type requested: {event_type}")
+            return []
+        
+    def get_event(self, event_type: str) -> Optional[LifeEvent]:
+        """
+        Returns the first life event for the specified event type.
+
+        Args:
+            event_type (str): Type of event ('birth', 'death', 'baptism', 'residence', 'military', 'arrival', 'departure').
+        Returns:
+            Optional[LifeEvent]: The first life event of the specified type, or None if not found.
+        """
+        events = self.get_events(event_type)
+        return events[0] if events else None
+        
     def __str__(self) -> str:
         """
         Returns a string representation of the person (xref and name).
@@ -143,11 +228,13 @@ class Person:
         """
         year_num: int = None
         description = 'Unknown'
-        if self.birth and self.birth.date:
-            year_num = self.birth.date.year_num
+        birth_event = self.get_event('birth')
+        death_event = self.get_event('death')
+        if birth_event and birth_event.date:
+            year_num = birth_event.date.year_num
             description = f'Born {year_num}' if year_num else 'Born Unknown'
-        elif self.death and self.death.date:
-            year_num = self.death.date.year_num
+        elif death_event and death_event.date:
+            year_num = death_event.date.year_num
             description = f'Died {year_num}' if year_num else 'Died Unknown'
         return description, year_num
     
@@ -160,11 +247,13 @@ class Person:
         """
         best_location: Optional[Location] = None
         location_type: Optional[str] = None
-        if self.birth and self.birth.location and self.birth.location.latlon and self.birth.location.latlon.hasLocation():
-            best_location = self.birth.location
+        birth_event = self.get_event('birth')
+        death_event = self.get_event('death')
+        if birth_event and birth_event.location and birth_event.location.latlon and birth_event.location.latlon.hasLocation():
+            best_location = birth_event.location
             location_type = 'Birth'
-        elif self.death and self.death.location and self.death.location.latlon and self.death.location.latlon.hasLocation():
-            best_location = self.death.location
+        elif death_event and death_event.location and death_event.location.latlon and death_event.location.latlon.hasLocation():
+            best_location = death_event.location
             location_type = 'Death'
         return best_location, location_type
     
@@ -237,9 +326,10 @@ class Person:
             return problems
         for childId in self.children:
             child = people.get(childId)
-            if not child or not (child.birth and child.birth.date and child.birth.date.year_num):
+            birth_event = child.get_event('birth') if child else None
+            if not child or not (birth_event and birth_event.date and birth_event.date.year_num):
                 continue
-            child_birth_year = child.birth.date.year_num
+            child_birth_year = birth_event.date.year_num
             if born:
                 parent_at_age = child_birth_year - born
                 if self.sex == "F":
@@ -271,8 +361,10 @@ class Person:
         Returns:
             list[str]: List of problems found.
         """
-        born = self.birth.date.year_num if self.birth and self.birth.date and self.birth.date.year_num else None
-        died = self.death.date.year_num if self.death and self.death.date and self.death.date.year_num else None
+        birth_event = self.get_event('birth')
+        death_event = self.get_event('death')
+        born = birth_event.date.year_num if birth_event and birth_event.date and birth_event.date.year_num else None
+        died = death_event.date.year_num if death_event and death_event.date and death_event.date.year_num else None
 
         problems = []
         problems += self._check_birth_death_problems(born, died, self.max_age)
