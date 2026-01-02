@@ -23,7 +23,8 @@ class Partner:
         latlon (Optional[LatLon]): Latitude/longitude of the partner.
     """
     __slots__ = ['xref_id', 'latlon']
-    def __init__(self, xref_id, latlon : LatLon = None):
+
+    def __init__(self, xref_id: str, latlon : LatLon = None):
         """
         Initialize a Partner.
 
@@ -31,11 +32,19 @@ class Partner:
             xref_id (str): Partner's GEDCOM cross-reference ID.
             latlon (Optional[LatLon]): Latitude/longitude of the partner.
         """
-        self.xref_id = xref_id
-        self.latlon :LatLon = latlon
+        self.xref_id : str = xref_id
+        self.latlon : LatLon = latlon
 
     def __str__(self):
+        """Return a string representation of the partner.
+        Returns:
+            str: String describing the partner.
+        """
         return f"Person(id={self.xref_id}, LatLon={self.latlon})"
 
     def __repr__(self) -> str:
+        """Return a detailed string representation for debugging.
+        Returns:
+            str: Debug string for the partner.
+        """
         return f'[ {self.xref_id} : LatLon={self.latlon} ]'

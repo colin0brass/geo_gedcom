@@ -198,6 +198,16 @@ class Person:
         return best
 
     def _check_birth_death_problems(self, born: Optional[int], died: Optional[int], max_age: int) -> list[str]:
+        """
+        Check for problems between birth and death years.
+        
+        Args:
+            born (Optional[int]): Birth year.
+            died (Optional[int]): Death year.
+            max_age (int): Maximum plausible age.
+        Returns:
+            list[str]: List of problems found.
+        """
         problems = []
         if born and died:
             if died < born:
@@ -209,6 +219,19 @@ class Person:
     def _check_parent_child_ages(self, people: Dict[str, 'Person'], born: Optional[int], died: Optional[int],
                                  max_mother_age: int, min_mother_age: int,
                                  max_father_age: int, min_father_age: int) -> list[str]:
+        """
+        Check for age-related problems between parents and children.
+        Args:
+            people (Dict[str, Person]): Dictionary of people by xref ID.
+            born (Optional[int]): Birth year of the parent.
+            died (Optional[int]): Death year of the parent.
+            max_mother_age (int): Maximum plausible age for mothers.
+            min_mother_age (int): Minimum plausible age for mothers.
+            max_father_age (int): Maximum plausible age for fathers.
+            min_father_age (int): Minimum plausible age for fathers.
+        Returns:
+            list[str]: List of problems found.
+        """
         problems = []
         if not self.children:
             return problems
@@ -243,6 +266,10 @@ class Person:
     def check_age_problems(self, people: Dict[str, 'Person']) -> list[str]:
         """
         Check for age-related problems in the person's life events.
+        Args:
+            people (Dict[str, Person]): Dictionary of people by xref ID.
+        Returns:
+            list[str]: List of problems found.
         """
         born = self.birth.date.year_num if self.birth and self.birth.date and self.birth.date.year_num else None
         died = self.death.date.year_num if self.death and self.death.date and self.death.date.year_num else None

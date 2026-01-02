@@ -12,6 +12,8 @@ class Marriage:
         event (LifeEvent): The marriage event details.
     """
 
+    __slots__ = ['people_list', 'event']
+
     def __init__(self, people_list: List["Person"] = None, marriage_event: LifeEvent = None):
         """Initializes a Marriage instance.
 
@@ -19,8 +21,8 @@ class Marriage:
             people_list (List["Person"], optional): List of people in the marriage. Defaults to empty list.
             marriage_event (LifeEvent, optional): The marriage event details. Defaults to None.
         """
-        self.people_list = people_list if people_list is not None else []
-        self.event = marriage_event if marriage_event is not None else None
+        self.people_list : List["Person"] = people_list if people_list is not None else []
+        self.event : LifeEvent = marriage_event if marriage_event is not None else None
 
     def __str__(self) -> str:
         """Returns a string representation of the marriage.
