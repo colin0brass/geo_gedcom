@@ -38,8 +38,6 @@ class FuzzyAddressBook:
             'address', 'alt_addr', 'used', 'type', 'class_', 'icon',
             'latitude', 'longitude', 'found_country', 'country_code', 'country_name'
         ]
-        self.last_results = []   # list of (address, match)
-        self.hit = 0
 
         # Find the caller information
         (filename, line_number, function_name, stack)= logger.findCaller(stacklevel=2)
@@ -194,18 +192,15 @@ class FuzzyAddressBook:
         Returns:
             Optional[str]: The best matching address key, or None if no good match found.
         """
-        for cached_address, cached_match in self.last_results: # Optimize for repeated lookups - saves 4% to 8%
-            if cached_address == address:
-                return cached_match
 
+        # This products a 100% match if the address exists exactly
+        match = self.__addresses.get(address)
+        if match is not None:
+            return address
+        
         choices = list(self.__addresses.keys())
         if choices:
             match, score, _ = process.extractOne(address, choices, scorer=fuzz.token_sort_ratio)
             if score >= threshold:
-                # rolling cache (max size = 4)
-                self.last_results.append((address, match))
-                self.last_results = self.last_results[-4:]   # keep only last 4
-                self.hit += 1
-                self.last_match = match
                 return match
         return None
