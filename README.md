@@ -43,6 +43,7 @@ pip install ged4py rapidfuzz unidecode pycountry pycountry-convert bpemb pyyaml
 - `Gedcom`: High-level handler for people and places.
 - `GedcomParser`: Utilities for parsing and exporting GEDCOM data.
 - `Person`, `LifeEvent`, `Marriage`: Data models for individuals, life events, and marriages.
+- `LifeEventSet`: Structured, type-annotated, and robust container for organizing and retrieving life events by type, supporting sorting and flexible event handling.
 - `Location`, `LatLon`: Geocoding and location utilities.
 - `FuzzyAddressBook`: Place/address management.
 - `GedcomDate`: Robust date parsing and normalization.
@@ -71,26 +72,52 @@ g.export_people_with_photos(filtered, "filtered.ged", "output", "photos")
 ```
 geo_gedcom/
 ├── __init__.py
-├── gedcom.py
-├── gedcom_parser.py
-├── person.py
-├── marriage.py
-├── location.py
-├── lat_lon.py
 ├── addressbook.py
+├── app_hooks.py
+├── gedcom.py
 ├── gedcom_date.py
+├── gedcom_parser.py
+├── geo_config.py
 ├── geocache.py
 ├── geocode.py
-├── geo_config.py
+├── geolocated_gedcom.py
+├── lat_lon.py
+├── life_event.py
+├── life_event_set.py
+├── location.py
+├── marriage.py
+├── partner.py
+├── person.py
+├── requirements.txt
+├── README.md
+├── samples/
+│   ├── bronte.ged
+│   ├── bronte_alt.csv
+│   ├── bronte_cache.csv
+│   ├── pres2020.ged
+│   ├── pres2020_alt.csv
+│   ├── pres2020_cache.csv
+│   ├── royal92.ged
+│   ├── royal92_alt.csv
+│   ├── royal92_cache.csv
+│   ├── shakespeare.ged
+│   ├── shakespeare_alt.csv
+│   └── shakespeare_cache.csv
 ├── tests/
-│   ├── test_gedcom_parser.py
-│   ├── test_gedcom_date.py
-│   ├── test_geocode.py
-│   ├── test_life_event.py
 │   ├── test_addressbook.py
+│   ├── test_gedcom_date.py
+│   ├── test_gedcom_parser.py
 │   ├── test_geo_config.py
-│   └── ...
-└── README.md
+│   ├── test_geo_gedcom_imports.py
+│   ├── test_geocache.py
+│   ├── test_geocode.py
+│   ├── test_geolocated_gedcom.py
+│   ├── test_latlon.py
+│   ├── test_life_event.py
+│   ├── test_location.py
+│   ├── test_marriage.py
+│   ├── test_partner.py
+│   └── test_person.py
 ```
 
 ## Authors
