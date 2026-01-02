@@ -375,7 +375,7 @@ class GedcomParser:
                 marriage_event = self.__get_event_location(marriages)
                 marriage = Marriage(people_list=partner_person_list, marriage_event=marriage_event)
                 for person in partner_person_list:
-                    person.add_events('marriage', marriage)
+                    person.add_event('marriage', marriage)
 
             for child in record.sub_tags('CHIL'):
                 if child.xref_id in people:

@@ -12,7 +12,7 @@ Author: @colin0brass
 Last updated: 2025-12-06
 """
 
-from typing import Optional
+from typing import Optional, List, Union
 from ged4py.model import Record
 from ged4py.date import DateValue
 from .gedcom_date import GedcomDate

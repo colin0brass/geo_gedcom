@@ -26,6 +26,7 @@ from .gedcom_date import GedcomDate
 from .partner import Partner
 from .marriage import Marriage
 from .life_event import LifeEvent
+from .life_event_set import LifeEventSet
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +42,8 @@ class Person:
         maidenname (Optional[str]): Maiden name.
         sex (Optional[str]): Sex ('M', 'F', or None).
         title (Optional[str]): Title.
-        birth (LifeEvent): Birth event.
-        death (LifeEvent): Death event.
-        baptism (List[LifeEvent]): Baptism events.
-        marriages (List[LifeEvent]): Marriage events.
-        residences (List[LifeEvent]): Residence events.
-        military (List[LifeEvent]): Military service events.
-        arrivals (List[LifeEvent]): Arrival events.
-        departures (List[LifeEvent]): Departure events.
+        event_type_list (List[str]): List of allowed event types.
+        allow_new_event_types (bool): Whether to allow new event types.
         father (Person): Father (xref ID or Person).
         mother (Person): Mother (xref ID or Person).
         children (List[str]): List of children xref IDs.
@@ -71,9 +66,9 @@ class Person:
     __slots__ = ['xref_id',
                  'name', 'firstname', 'surname', 'maidenname',
                  'sex','title',
-                 '__birth', '__death',
-                 '__baptism', '__marriages', '__residences', '__military',
-                 '__arrivals', '__departures',
+                 'event_type_list',
+                 'allow_new_event_types',
+                 '__life_event_set',
                  'father', 'mother', 'children', 'partners', 
                  'age', 'photos_all', 'photo', 
                  'location', 'latlon', 
@@ -95,16 +90,9 @@ class Person:
         self.sex : Optional[str] = None
         self.title : Optional[str] = None
 
-        self.__birth : List[LifeEvent] = []
-        self.__death : List[LifeEvent] = []
-
-        self.__baptism : List[LifeEvent] = []
-        self.__marriages : List[Marriage] = []
-        self.__residences : List[LifeEvent] = []
-        self.__military : List[LifeEvent] = []
-
-        self.__arrivals : List[LifeEvent] = []
-        self.__departures : List[LifeEvent] = []
+        self.event_type_list : List[str] = ['birth', 'death', 'marriage', 'baptism', 'residence', 'military', 'arrival', 'departure']
+        self.allow_new_event_types : bool = False
+        self.__life_event_set : LifeEventSet = LifeEventSet(event_types=self.event_type_list, allow_new_event_types=self.allow_new_event_types)
 
         self.father : Person = None
         self.mother : Person = None
@@ -131,26 +119,7 @@ class Person:
             event_type (str): Type of event ('birth', 'marriage', 'death', 'baptism', 'residence', 'military', 'arrival', 'departure').
         """
         event_type = event_type.lower()
-        if not isinstance(life_events, list):
-            life_events = [life_events]
-        if event_type == 'birth' and life_events:
-            self.__birth += life_events
-        if event_type == 'marriage' and life_events:
-            self.__marriages += life_events
-        elif event_type == 'death' and life_events:
-            self.__death += life_events
-        elif event_type == 'baptism':
-            self.__baptism += life_events
-        elif event_type == 'residence':
-            self.__residences += life_events
-        elif event_type == 'military':
-            self.__military += life_events
-        elif event_type == 'arrival':
-            self.__arrivals += life_events
-        elif event_type == 'departure':
-            self.__departures += life_events
-        else:
-            logger.warning(f"Unknown event type or empty events provided: {event_type}")
+        self.__life_event_set.add_events(event_type, life_events)
 
     def add_event(self, event_type: str, life_event: Optional[Union[LifeEvent, Marriage]]):
         """
@@ -165,7 +134,7 @@ class Person:
             return
         self.add_events(event_type, [life_event])
 
-    def get_events(self, event_type: str) -> Union[LifeEvent, List[LifeEvent]]:
+    def get_events(self, event_type: str, date_order: bool = False) -> Union[LifeEvent, List[LifeEvent]]:
         """
         Returns a list of life events for the specified event type.
 
@@ -175,25 +144,7 @@ class Person:
             List[LifeEvent]: List of life events of the specified type.
         """
         event_type = event_type.lower()
-        if event_type == 'birth':
-            return self.__birth
-        elif event_type == 'marriage':
-            return self.__marriages
-        elif event_type == 'death':
-            return self.__death
-        elif event_type == 'baptism':
-            return self.__baptism
-        elif event_type == 'residence':
-            return self.__residences
-        elif event_type == 'military':
-            return self.__military
-        elif event_type == 'arrival':
-            return self.__arrivals
-        elif event_type == 'departure':
-            return self.__departures
-        else:
-            logger.warning(f"Unknown event type requested: {event_type}")
-            return []
+        return self.__life_event_set.get_events(event_type, date_order=date_order)
         
     def get_event(self, event_type: str) -> Optional[LifeEvent]:
         """
