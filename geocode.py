@@ -74,7 +74,8 @@ class Geocode:
     __slots__ = [
         'default_country', 'always_geocode', 'cache_only', 'location_cache_file', 'additional_countries_codes_dict_to_add',
         'additional_countries_to_add', 'country_substitutions', 'geo_cache',
-        'geolocator', 'geo_config', 'app_hooks', '_last_geocode_time'
+        'geolocator', 'geo_config', 'app_hooks', '_last_geocode_time',
+        'num_geocoded', 'num_from_cache'
     ]
     geocode_sleep_interval = 1  # Delay due to Nominatim request limit
 
@@ -112,6 +113,9 @@ class Geocode:
         self.app_hooks = app_hooks
 
         self._last_geocode_time = 0.0  # Timestamp of last geocode request
+
+        self.num_geocoded = 0
+        self.num_from_cache = 0
 
     def save_geo_cache(self) -> None:
         """
@@ -263,6 +267,7 @@ class Geocode:
         if cache_entry and not self.always_geocode:
             if cache_entry.get('latitude') and cache_entry.get('longitude'):
                 found_in_cache = True
+                self.num_from_cache += 1
                 location = Location.from_dict(cache_entry)
                 if cache_entry.get('found_country', False) == False or cache_entry.get('country_name', '') == '':
                     # Not sure this is needed
@@ -280,6 +285,7 @@ class Geocode:
 
         if not found_in_cache:
             location = self.geocode_address(place_with_country, country_code, country_name, found_country, address_depth=0)
+            self.num_geocoded += 1
             if location is not None:
                 location.address = place
                 self.geo_cache.add_geo_cache_entry(place, location)
