@@ -150,8 +150,7 @@ class GeolocatedGedcom(Gedcom):
                 self.save_location_cache()
         self.save_location_cache() # Final save
 
-        logger.info(f"Geocoded {self.geocoder.num_geocoded} locations, retrieved {self.geocoder.num_from_cache} from cache.")
-        logger.info(f"Geolocation of all {self.address_book.len()} places completed.")
+        logger.info(f"Geolocation of all {self.address_book.len()} places completed. ({self.geocoder.num_geocoded} geocoded, {self.geocoder.num_from_cache} from cache, {self.geocoder.num_from_cache_no_location_result} from cache with no location result.)")
 
     def parse_people(self) -> None:
         """

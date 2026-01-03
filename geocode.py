@@ -75,7 +75,7 @@ class Geocode:
         'default_country', 'always_geocode', 'cache_only', 'location_cache_file', 'additional_countries_codes_dict_to_add',
         'additional_countries_to_add', 'country_substitutions', 'geo_cache',
         'geolocator', 'geo_config', 'app_hooks', '_last_geocode_time',
-        'num_geocoded', 'num_from_cache'
+        'num_geocoded', 'num_from_cache', 'num_from_cache_no_location_result'
     ]
     geocode_sleep_interval = 1  # Delay due to Nominatim request limit
 
@@ -116,6 +116,7 @@ class Geocode:
 
         self.num_geocoded = 0
         self.num_from_cache = 0
+        self.num_from_cache_no_location_result = 0
 
     def save_geo_cache(self) -> None:
         """
@@ -260,14 +261,15 @@ class Geocode:
             use_place_name, cache_entry = self.geo_cache.lookup_geo_cache_entry(place)
 
         if cache_entry and cache_entry.get("no_result"):
+            self.num_from_cache_no_location_result += 1
             return None
         
         (place_with_country, country_code, country_name, found_country) = self.geo_config.get_place_and_countrycode(use_place_name)
 
         if cache_entry and not self.always_geocode:
+            self.num_from_cache += 1
             if cache_entry.get('latitude') and cache_entry.get('longitude'):
                 found_in_cache = True
-                self.num_from_cache += 1
                 location = Location.from_dict(cache_entry)
                 if cache_entry.get('found_country', False) == False or cache_entry.get('country_name', '') == '':
                     # Not sure this is needed
@@ -284,8 +286,8 @@ class Geocode:
                     logger.info(f"Country not found in cache for {use_place_name}")
 
         if not found_in_cache:
-            location = self.geocode_address(place_with_country, country_code, country_name, found_country, address_depth=0)
             self.num_geocoded += 1
+            location = self.geocode_address(place_with_country, country_code, country_name, found_country, address_depth=0)
             if location is not None:
                 location.address = place
                 self.geo_cache.add_geo_cache_entry(place, location)
