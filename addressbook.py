@@ -196,7 +196,7 @@ class FuzzyAddressBook:
         # This products a 100% match if the address exists exactly
         match = self.__addresses.get(address)
         if match is not None:
-            return address
+            return match.address
         
         choices = list(self.__addresses.keys())
         if choices:
