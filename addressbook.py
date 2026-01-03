@@ -26,6 +26,8 @@ class FuzzyAddressBook:
         __addresses (Dict[str, Location]): Internal mapping of address strings to Location objects.
         __alt_addr_to_address_lookup (Dict[str, List[str]]): Maps alt_addr to addresses.
         summary_columns (List[str]): List of columns for summary output.
+        address_existed (int): Count of addresses that existed in the book during lookups.
+        address_didnt_exist (int): Count of addresses that did not exist in the book during lookups.
     """
 
     def __init__(self):
@@ -38,6 +40,8 @@ class FuzzyAddressBook:
             'address', 'alt_addr', 'used', 'type', 'class_', 'icon',
             'latitude', 'longitude', 'found_country', 'country_code', 'country_name'
         ]
+        self.address_existed = 0
+        self.address_didnt_exist = 0
 
         # Find the caller information
         (filename, line_number, function_name, stack)= logger.findCaller(stacklevel=2)
@@ -196,7 +200,10 @@ class FuzzyAddressBook:
         # This products a 100% match if the address exists exactly
         match = self.__addresses.get(address)
         if match is not None:
+            self.address_existed += 1
             return match.address
+        else:
+            self.address_didnt_exist += 1
         
         choices = list(self.__addresses.keys())
         if choices:

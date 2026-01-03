@@ -166,10 +166,26 @@ class GeolocatedGedcom(Gedcom):
         Get all places from the GEDCOM file.
         """
         super().read_full_address_list()
-        for place in self.address_list:
+        num_addresses = len(self.address_list)
+        num_addresses_existed = 0
+        num_addresses_didnt_exist = 0
+        for idx, place in enumerate(self.address_list):
             if not self.address_book.get_address(place):
                 location = None
                 self.address_book.add_address(place, location)
+                num_addresses_didnt_exist += 1
+            else:
+                num_addresses_existed += 1
+            if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+                if self.app_hooks.stop_requested():
+                    logger.info("Reading address book process stopped by user.")
+                    break
+            if idx % self.geolocate_all_logger_interval == 0:
+                logger.info(f"Read {idx} of {num_addresses} addresses ...")
+                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                    self.app_hooks.report_step(plus_step=self.geolocate_all_logger_interval, info=f"Read {idx} of {num_addresses}")
+        logger.info(f"Address book read completed: {num_addresses} addresses, {num_addresses_existed} already existed, {num_addresses_didnt_exist} added.")
+        logger.info(f"Address book stats: {self.address_book.address_existed} addresses existed during lookups, {self.address_book.address_didnt_exist} did not exist.")
 
     def geolocate_people(self) -> None:
         """
