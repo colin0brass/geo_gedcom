@@ -499,12 +499,13 @@ class GedcomParser:
 
     def get_full_address_list(self) -> List[str]:
         """
-        Returns a list of all unique places found in the GEDCOM file.
+        Returns a list of all unique places found in the GEDCOM file, preserving order.
 
         Returns:
             List[str]: List of unique place names.
         """
         address_list = []
+        seen = set()
         try:
             with GedcomReader(str(self.gedcom_file)) as g:
                 # Individuals: collect PLAC under any event (BIRT/DEAT/BAPM/MARR/etc.)
@@ -513,7 +514,9 @@ class GedcomParser:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
                             place = plac.strip()
-                            address_list.append(place)
+                            if place and place not in seen:
+                                address_list.append(place)
+                                seen.add(place)
 
                 # Families: marriage/divorce places, etc.
                 for fam in g.records0("FAM"):
@@ -521,7 +524,9 @@ class GedcomParser:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
                             place = plac.strip()
-                            address_list.append(place)
+                            if place and place not in seen:
+                                address_list.append(place)
+                                seen.add(place)
 
         except Exception as e:
             logger.error(f"Error extracting places from GEDCOM file '{self.gedcom_file}': {e}")
