@@ -45,7 +45,8 @@ def fuzzy_lookup_success(geo_cache, ab):
         if adr is not None:
             fuzzy_success += 1
         else:
-            print (f"Fuzzy failed: `{ladr}`")
+            pass
+            # print (f"Fuzzy failed: `{ladr}`")
 
     t1 = timeit.default_timer()
     return fuzzy_success, t1 - t0
@@ -59,10 +60,11 @@ def get_address_success(geo_cache, ab):
         if adr is not None and adr.address == ladr:
             get_success += 1
         else:
-            if adr is None:
-                print (f"Get failed  : `{ladr}` vs none")
-            else:
-                print (f"Get failed  : `{ladr}` vs `{adr.address}`")
+            pass
+            #if adr is None:
+            #    print (f"Get failed  : `{ladr}` vs none")
+            #else:
+            #    print (f"Get failed  : `{ladr}` vs `{adr.address}`")
     t1 = timeit.default_timer()
     return get_success, t1 - t0
 
@@ -71,10 +73,12 @@ def performance_results():
     results = []
     yield results
     print("\n### Addressbook Performance")
-    print("Cache File|Entries|Fuzzy % |Get %|Location|Add address|Fuzzy Time|Get Time|Fuzzy #| Get #")
-    print(f"{'---|' * 10}")
+    print("Cache File|Entries|Fuzzy % |Get %|Fuzz Rate|Get Rate|Location|Add address|Fuzzy Time|Get Time|Fuzzy #| Get #")
+    print(f"{'---|' * 12}")
     for r in results:
-        print(f"{r['cache_file']}|{r['entries']}|{r['fuzzy_success']/r['entries']*100:.1f}%|{r['get_success']/r['entries']*100:.1f}%|{(r['t_location']):.5f}s|{(r['t_add']-r['t_location']):.5f}s|{r['t_fuzzy']:.5f}s|{r['t_get']:.5f}s|{r['fuzzy_success']}|{r['get_success']}")
+        print(f"{r['cache_file']}|{r['entries']}|{r['fuzzy_success']/r['entries']*100:.1f}%|{r['get_success']/r['entries']*100:.1f}%|" +
+              f"{r['fuzzy_success']/r['t_fuzzy']:,.1f}/s|{r['get_success']/r['t_get']:,.1f}/s|" + 
+              f"{(r['t_location']):.5f}s|{(r['t_add']-r['t_location']):.5f}s|{r['t_fuzzy']:.5f}s|{r['t_get']:.5f}s|{r['fuzzy_success']}|{r['get_success']}")
 
 # Note: some of these cache files are not currently included in the online repository
 # They should be created from GEDCOM samples with geo-coding enabled, using the "SUM" output option.
@@ -83,10 +87,10 @@ def performance_results():
     ('pres2020', 'gedcom-to-map/geo_gedcom/gedcom-samples/pres/geo_cache.csv'),
     ('royal92', 'gedcom-to-map/geo_gedcom/gedcom-samples/royal/geo_cache.csv'),
     # these are in the online repository:
-    # ('longsword', 'gedcom-samples/longsword/geo_cache.csv'),
     ('ivar', 'gedcom-to-map/geo_gedcom/gedcom-samples/ivar/geo_cache.csv'),
     ('bourbon', 'gedcom-samples/sample-bourbon/geo_cache.csv'),
     ('kennedy', 'gedcom-samples/sample-kennedy/geo_cache.csv'),
+    # ('longsword', 'gedcom-to-map/geo_gedcom/gedcom-samples/longsword/geo_cache.csv'),
 ])
 def test_addressbook_performance(label, cache_file_path, performance_results):
     geo_cache = load_geo_cache(cache_file_path)
