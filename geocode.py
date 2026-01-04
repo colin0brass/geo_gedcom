@@ -235,7 +235,7 @@ class Geocode:
             if not self.always_geocode and (place_lower in self.geo_cache.geo_cache):
                 cached_places.add_address(place, data, fuzz=False)
             else:
-                non_cached_places.add_address(place, data)
+                non_cached_places.add_address(place, data, fuzz=False)
         return (cached_places, non_cached_places)
 
     def lookup_location(self, place: str) -> Optional[Location]:
