@@ -69,7 +69,7 @@ class GedcomParser:
 
         # caches populated by _load_people_and_places()
         self._cached_people = None
-        self._cached_address_book = None
+        # self._cached_address_book = None
         self.simplify_date = True
         self.simplify_range_policy = 'first'  # 'first' or 'approximate'
         self.num_people = 0
@@ -462,37 +462,37 @@ class GedcomParser:
 
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
                     self.app_hooks.report_step("Loading addresses from GED", target=self.num_people + self.num_families, reset_counter=True, plus_step=0)
-                # Now extract places
-                # (considered to extract from people, however suspect that might risk missing some record types)
-                iteration = 0
-                self._cached_address_book = FuzzyAddressBook()
-                for indi in records('INDI'):
-                    for ev in indi.sub_records:
-                        plac = ev.sub_tag_value("PLAC")
-                        if plac:
-                            place = plac.strip()
-                            self._cached_address_book.add_address(place, None, fuzz=False)
-                    if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
-                        if self.app_hooks.stop_requested():
-                            break
-                    iteration += 1
-                    if iteration % 100 == 0:
-                        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                            self.app_hooks.report_step(set_counter = iteration, plus_step=100)
+                # # Now extract places
+                # # (considered to extract from people, however suspect that might risk missing some record types)
+                # iteration = 0
+                # self._cached_address_book = FuzzyAddressBook()
+                # for indi in records('INDI'):
+                #     for ev in indi.sub_records:
+                #         plac = ev.sub_tag_value("PLAC")
+                #         if plac:
+                #             place = plac.strip()
+                #             self._cached_address_book.add_address(place, None)
+                #     if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+                #         if self.app_hooks.stop_requested():
+                #             break
+                #     iteration += 1
+                #     if iteration % 100 == 0:
+                #         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                #             self.app_hooks.report_step(set_counter = iteration, plus_step=100)
 
-                for fam in records('FAM'):
-                    for ev in fam.sub_records:
-                        plac = ev.sub_tag_value("PLAC")
-                        if plac:
-                            place = plac.strip()
-                            self._cached_address_book.add_address(place, None, fuzz=False)
-                    if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
-                        if self.app_hooks.stop_requested():
-                            break
-                    iteration += 1
-                    if iteration % 100 == 0:
-                        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                            self.app_hooks.report_step(set_counter = iteration, plus_step=100)
+                # for fam in records('FAM'):
+                #     for ev in fam.sub_records:
+                #         plac = ev.sub_tag_value("PLAC")
+                #         if plac:
+                #             place = plac.strip()
+                #             self._cached_address_book.add_address(place, None)
+                #     if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+                #         if self.app_hooks.stop_requested():
+                #             break
+                #     iteration += 1
+                #     if iteration % 100 == 0:
+                #         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+                #             self.app_hooks.report_step(set_counter = iteration, plus_step=100)
 
         except Exception as e:
             logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")

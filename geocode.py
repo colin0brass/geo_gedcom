@@ -228,12 +228,13 @@ class Geocode:
         Returns:
             Tuple[FuzzyAddressBook, FuzzyAddressBook]: (cached_places, non_cached_places)
         """
-        cached_places = FuzzyAddressBook()
-        non_cached_places = FuzzyAddressBook()
+        fuzz = address_book.fuzz
+        cached_places = FuzzyAddressBook(fuzz=fuzz)
+        non_cached_places = FuzzyAddressBook(fuzz=fuzz)
         for place, data in address_book.addresses().items():
             place_lower = place.lower()
             if not self.always_geocode and (place_lower in self.geo_cache.geo_cache):
-                cached_places.add_address(place, data, fuzz=False)
+                cached_places.add_address(place, data)
             else:
                 non_cached_places.add_address(place, data, fuzz=False)
         return (cached_places, non_cached_places)

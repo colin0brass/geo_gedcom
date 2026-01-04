@@ -26,11 +26,12 @@ class FuzzyAddressBook:
         __addresses (Dict[str, Location]): Internal mapping of address strings to Location objects.
         __alt_addr_to_address_lookup (Dict[str, List[str]]): Maps alt_addr to addresses.
         summary_columns (List[str]): List of columns for summary output.
+        fuzz (bool): Whether to use fuzzy matching when adding addresses.
         address_existed (int): Count of addresses that existed in the book during lookups.
         address_didnt_exist (int): Count of addresses that did not exist in the book during lookups.
     """
 
-    def __init__(self):
+    def __init__(self, fuzz: bool = True):
         """
         Initialize an empty FuzzyAddressBook.
         """
@@ -40,8 +41,9 @@ class FuzzyAddressBook:
             'address', 'alt_addr', 'used', 'type', 'class_', 'icon',
             'latitude', 'longitude', 'found_country', 'country_code', 'country_name'
         ]
-        self.address_existed = 0
-        self.address_didnt_exist = 0
+        self.fuzz: bool = fuzz
+        self.address_existed: int = 0
+        self.address_didnt_exist: int = 0
 
         # Find the caller information
         (filename, line_number, function_name, stack)= logger.findCaller(stacklevel=2)
@@ -84,7 +86,7 @@ class FuzzyAddressBook:
             self.__addresses[key] = location
             self.__add_alt_addr_to_address_lookup(location.alt_addr, key)
 
-    def add_address(self, address: str, location: Union[Location, None], fuzz: bool = True):
+    def add_address(self, address: str, location: Union[Location, None]):
         """
         Add a new address to the address book, using fuzzy matching to find
         the best existing address if there's a close match, and use same alt_addr.
@@ -92,12 +94,12 @@ class FuzzyAddressBook:
         Args:
             address (str): The address to add.
             location (Location): The location data associated with the address.
-            fuzz (bool): Whether to perform fuzzy matching to find existing addresses before adding.
         """
-        if fuzz:
+        if self.fuzz:
             existing_key = self.fuzzy_lookup_address(address)
         else:
-            existing_key =  self.get_address(address) 
+            existing_location =  self.get_address(address) 
+            existing_key = address if existing_location is not None else None
 
         if existing_key is not None:
             # If a similar (or identical) address exists, create or update the entry with the same alt_addr
