@@ -471,7 +471,7 @@ class GedcomParser:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
                             place = plac.strip()
-                            self._cached_address_book.add_address(place, None)
+                            self._cached_address_book.add_address(place, None, fuzz=False)
                     if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
                         if self.app_hooks.stop_requested():
                             break
@@ -485,7 +485,7 @@ class GedcomParser:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
                             place = plac.strip()
-                            self._cached_address_book.add_address(place, None)
+                            self._cached_address_book.add_address(place, None, fuzz=False)
                     if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
                         if self.app_hooks.stop_requested():
                             break

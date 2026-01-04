@@ -118,7 +118,8 @@ class GeolocatedGedcom(Gedcom):
         for idx, (place, data) in enumerate(cached_places.addresses().items(), 1):
             use_place = data.alt_addr if data.alt_addr else place
             location = self.geocoder.lookup_location(use_place)
-            self.address_book.add_address(place, location)
+            # Address could be in address book already
+            self.address_book.add_address(place, location)      
             if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
                 if self.app_hooks.stop_requested():
                     logger.info("Geolocation process stopped by user.")

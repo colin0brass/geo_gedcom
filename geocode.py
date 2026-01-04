@@ -233,7 +233,7 @@ class Geocode:
         for place, data in address_book.addresses().items():
             place_lower = place.lower()
             if not self.always_geocode and (place_lower in self.geo_cache.geo_cache):
-                cached_places.add_address(place, data)
+                cached_places.add_address(place, data, fuzz=False)
             else:
                 non_cached_places.add_address(place, data)
         return (cached_places, non_cached_places)

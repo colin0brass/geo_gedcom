@@ -84,7 +84,7 @@ class FuzzyAddressBook:
             self.__addresses[key] = location
             self.__add_alt_addr_to_address_lookup(location.alt_addr, key)
 
-    def add_address(self, address: str, location: Union[Location, None]):
+    def add_address(self, address: str, location: Union[Location, None], fuzz: bool = True):
         """
         Add a new address to the address book, using fuzzy matching to find
         the best existing address if there's a close match, and use same alt_addr.
@@ -92,8 +92,12 @@ class FuzzyAddressBook:
         Args:
             address (str): The address to add.
             location (Location): The location data associated with the address.
+            fuzz (bool): Whether to perform fuzzy matching to find existing addresses before adding.
         """
-        existing_key = self.fuzzy_lookup_address(address)
+        if fuzz:
+            existing_key = self.fuzzy_lookup_address(address)
+        else:
+            existing_key =  self.get_address(address) 
 
         if existing_key is not None:
             # If a similar (or identical) address exists, create or update the entry with the same alt_addr
