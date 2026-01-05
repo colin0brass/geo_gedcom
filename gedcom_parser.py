@@ -20,7 +20,8 @@ from ged4py.parser import GedcomReader
 from ged4py.model import Record, NameRec
 from .person import Person, LifeEvent
 from .marriage import Marriage
-from .addressbook import FuzzyAddressBook
+from .gedcom_legacy import GedcomLegacy
+from .gedcom_fix import GedcomFix
 from .app_hooks import AppHooks
 
 logger = logging.getLogger(__name__)
@@ -32,14 +33,13 @@ class GedcomParser:
     Attributes:
         gedcom_file (Optional[Path]): Path to GEDCOM file.
         _cached_people (Optional[Dict[str, Person]]): Cached people dictionary.
-        _cached_address_book (Optional[FuzzyAddressBook]): Cached address book.
         only_use_photo_tags (bool): Whether to use only _PHOTO tags for photos.
         simplify_date (bool): Whether to simplify date parsing.
         simplify_range_policy (str): Policy for range simplification ('first', 'approximate').
     """
     __slots__ = [
         'gedcom_file',
-        '_cached_people', '_cached_address_book',
+        '_cached_people',
         'simplify_date',
         'simplify_range_policy',
         'app_hooks',
@@ -63,19 +63,17 @@ class GedcomParser:
         """
         self.app_hooks = app_hooks
 
-        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step("Checking and fixing GEDCOM file ...", plus_step=0)
-        self.gedcom_file = self.check_fix_gedcom(gedcom_file)
-
         # caches populated by _load_people_and_places()
         self._cached_people = None
-        # self._cached_address_book = None
         self.simplify_date = True
         self.simplify_range_policy = 'first'  # 'first' or 'approximate'
         self.num_people = 0
         self.num_families = 0
-        
-        self.has_photo_tag, self.has_obje_tag = self.check_photo_tags(self.gedcom_file) if self.gedcom_file else (False, False)
+
+        self.gedcom_file = self._check_fix_gedcom(gedcom_file)
+        self.gedcom_file = self._check_convert_legacy_gedcom(self.gedcom_file)
+
+        self.has_photo_tag, self.has_obje_tag = self._check_photo_tags(self.gedcom_file) if self.gedcom_file else (False, False)
         # if file has _PHOTO tags, prefer those, otherwise use both _PHOTO and OBJE
         if self.has_photo_tag:
             self.only_use_photo_tags = True
@@ -86,18 +84,47 @@ class GedcomParser:
         """Placeholder for compatibility."""
         pass
 
-    def check_fix_gedcom(self, input_path: Path) -> Path:
+    def _check_fix_gedcom(self, input_path: Path) -> Path:
         """Fixes common issues in GEDCOM records."""
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Checking and fixing GEDCOM file ...", plus_step=0)
+
         if input_path is None:
             return None
+
         temp_fd, temp_path = tempfile.mkstemp(suffix='.ged')
         os.close(temp_fd)
-        changed = self.fix_gedcom_conc_cont_levels(input_path, temp_path)
+
+        fixer = GedcomFix(input_path)
+        changed = fixer.fix_gedcom_levels(temp_path)
+
         if changed:
             logger.warning(f"Checked and made corrections to GEDCOM file '{input_path}' saved as {temp_path}")
+        else:
+            os.remove(temp_path)
+        return temp_path if changed else input_path
+    
+    def _check_convert_legacy_gedcom(self, input_path: Path) -> Path:
+        """Converts Legacy GEDCOM to GEDCOM 5.5 if needed."""
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step("Check and convert if Legacy GEDCOM ...", plus_step=0)
+
+        if input_path is None:
+            return None
+
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.ged')
+        os.close(temp_fd)
+
+        converter = GedcomLegacy(input_path)
+        changed = converter.legacy_convert(Path(temp_path))
+
+        if changed:
+            logger.warning(f"Converted Legacy GEDCOM file '{input_path}' to GEDCOM 5.5 saved as {temp_path}")
+        else:
+            os.remove(temp_path)
         return temp_path if changed else input_path
 
-    def check_if_tag_used(self, input_path: Path, tag: str) -> bool:
+    def _check_if_tag_used(self, input_path: Path, tag: str) -> bool:
         """Check if GEDCOM file has a specific tag."""
         has_tag = False
         try:
@@ -116,46 +143,11 @@ class GedcomParser:
             logger.error(f"Failed to check GEDCOM file {input_path} for {tag} tags: {e}")
         return has_tag
     
-    def check_photo_tags(self, input_path: Path) -> tuple[bool, bool]:
+    def _check_photo_tags(self, input_path: Path) -> tuple[bool, bool]:
         """Check if GEDCOM file has photo tags (_PHOTO or OBJE)."""
-        has_photo_tag = self.check_if_tag_used(input_path, "_PHOTO")
-        has_obje_tag = self.check_if_tag_used(input_path, "OBJE")
+        has_photo_tag = self._check_if_tag_used(input_path, "_PHOTO")
+        has_obje_tag = self._check_if_tag_used(input_path, "OBJE")
         return has_photo_tag, has_obje_tag
-    
-    def fix_gedcom_conc_cont_levels(self, input_path: Path, temp_path: Path) -> bool:
-        """
-        Fixes GEDCOM continuity and structure levels.
-        These types of GEDCOM issues have been seen from Family Tree Maker exports.
-        If not fixed, they can cause failure to parse the GEDCOM file correctly.
-        """
-
-        cont_level = None
-        changed = False
-
-        try:
-            with open(input_path, 'r', encoding='utf-8', newline='', errors="replace") as infile, \
-                open(temp_path, 'w', encoding='utf-8', newline='') as outfile:
-                for raw in infile:
-                    line = raw.rstrip('\r\n')
-                    m = self.LINE_RE.match(line)
-                    if not m:
-                        outfile.write(raw)
-                        continue
-
-                    level_s, tag, rest = m.groups()
-                    level = int(level_s)
-
-                    if tag in ('CONC', 'CONT'):
-                        fixed_level = cont_level if cont_level is not None else level
-                        outfile.write(f"{fixed_level} {tag}{rest}\n")
-                        if fixed_level != level:
-                            changed = True
-                    else:
-                        cont_level = level + 1
-                        outfile.write(raw)
-        except IOError as e:
-            logger.error(f"Failed to fix GEDCOM file {input_path}: {e}")
-        return changed
 
     def __get_event_location(self, record: Record) -> Optional[LifeEvent]:
         """
@@ -462,37 +454,6 @@ class GedcomParser:
 
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
                     self.app_hooks.report_step("Loading addresses from GED", target=self.num_people + self.num_families, reset_counter=True, plus_step=0)
-                # # Now extract places
-                # # (considered to extract from people, however suspect that might risk missing some record types)
-                # iteration = 0
-                # self._cached_address_book = FuzzyAddressBook()
-                # for indi in records('INDI'):
-                #     for ev in indi.sub_records:
-                #         plac = ev.sub_tag_value("PLAC")
-                #         if plac:
-                #             place = plac.strip()
-                #             self._cached_address_book.add_address(place, None)
-                #     if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
-                #         if self.app_hooks.stop_requested():
-                #             break
-                #     iteration += 1
-                #     if iteration % 100 == 0:
-                #         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                #             self.app_hooks.report_step(set_counter = iteration, plus_step=100)
-
-                # for fam in records('FAM'):
-                #     for ev in fam.sub_records:
-                #         plac = ev.sub_tag_value("PLAC")
-                #         if plac:
-                #             place = plac.strip()
-                #             self._cached_address_book.add_address(place, None)
-                #     if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
-                #         if self.app_hooks.stop_requested():
-                #             break
-                #     iteration += 1
-                #     if iteration % 100 == 0:
-                #         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                #             self.app_hooks.report_step(set_counter = iteration, plus_step=100)
 
         except Exception as e:
             logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")
