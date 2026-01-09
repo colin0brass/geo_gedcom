@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from .gedcom import Gedcom
 from .geocode import Geocode
 from .location import Location
-from .addressbook import FuzzyAddressBook
+from .addressbook import AddressBook
 from .life_event import LifeEvent
 from .lat_lon import LatLon
 from .app_hooks import AppHooks
@@ -19,7 +19,7 @@ class GeolocatedGedcom(Gedcom):
 
     Attributes:
         geocoder (Geocode): Geocode instance.
-        address_book (FuzzyAddressBook): Address book of places.
+        address_book (AddressBook): Address book of places.
     """
     __slots__ = [
         'geocoder',
@@ -43,7 +43,7 @@ class GeolocatedGedcom(Gedcom):
             geo_config_path: Optional[Path] = None,
             file_geo_cache_path: Optional[Path] = None,
             app_hooks: Optional['AppHooks'] = None,
-            fuzz: bool = True
+            fuzz: bool = False
     ):
         """
         Initialize GeolocatedGedcom.
@@ -60,7 +60,7 @@ class GeolocatedGedcom(Gedcom):
         """
         super().__init__(gedcom_file=gedcom_file, app_hooks=app_hooks)
 
-        self.address_book = FuzzyAddressBook(fuzz=fuzz)
+        self.address_book = AddressBook(fuzz=fuzz)
         self.app_hooks = app_hooks
 
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
@@ -141,8 +141,6 @@ class GeolocatedGedcom(Gedcom):
         logger.info(f"Geolocating {num_non_cached_places} non-cached places...")
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
             self.app_hooks.report_step(f"Geolocating uncached places", target=num_non_cached_places, reset_counter=True)
-        for place in non_cached_places.addresses().keys():
-            logger.info(f"- {place}...")
         for idx, (place, data) in enumerate(non_cached_places.addresses().items(), 1):
             use_place = data.alt_addr if data.alt_addr else place
             location = self.geocoder.lookup_location(use_place)
@@ -201,44 +199,13 @@ class GeolocatedGedcom(Gedcom):
 
     def geolocate_people(self) -> None:
         """
-        Geolocate birth, marriage, and death events for all people.
+        Geolocate all life events for all people using the iter_life_events generator.
         """
         for person in self.people.values():
-            found_location = False
-            if  self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
                 self.app_hooks.report_step(info=f"Reviewing {getattr(person, 'name', '-Unknown-')}")
-            birth_event = person.get_event('birth')
-            if birth_event:
-                event = self.__geolocate_event(birth_event)
-                birth_event.location = event.location
-                if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
-                    person.latlon = event.location.latlon
-                    found_location = True
-            marriages = person.get_events('marriage')
-            for marriage in marriages:
-                marriage_event = marriage.event if marriage.event else None
-                if not marriage_event:
-                    continue
-                event = self.__geolocate_event(marriage_event)
-                marriage_event.location = event.location
-                if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
-                    person.latlon = event.location.latlon
-                    found_location = True
-            death_event = person.get_event('death')
-            if death_event:
-                event = self.__geolocate_event(death_event)
-                death_event.location = event.location
-                if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
-                    person.latlon = event.location.latlon
-                    found_location = True
-            residence_events = person.get_events('residence')
-            if residence_events:
-                for residence in residence_events:
-                    event = self.__geolocate_event(residence)
-                    residence.location = event.location
-                    if not found_location and event.location and event.location.latlon and event.location.latlon.is_valid():
-                        person.latlon = event.location.latlon
-                        found_location = True
+            for event in person.iter_life_events():
+                self.__geolocate_event(event)
 
     def __geolocate_event(self, event: LifeEvent) -> LifeEvent:
         """

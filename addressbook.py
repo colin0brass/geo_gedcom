@@ -1,7 +1,7 @@
 """
-addressbook.py - FuzzyAddressBook for geo_gedcom mapping.
+addressbook.py - AddressBook for geo_gedcom mapping.
 
-Defines the FuzzyAddressBook class for storing, managing, and fuzzy-matching geocoded addresses and locations.
+Defines the AddressBook class for storing, managing, and fuzzy-matching geocoded addresses and locations.
 Supports summary reporting and integration with Location and LatLon classes.
 
 Module: geo_gedcom.addressbook
@@ -18,7 +18,7 @@ from .lat_lon import LatLon
 
 logger = logging.getLogger(__name__)
 
-class FuzzyAddressBook:
+class AddressBook:
     """
     Stores and manages a collection of geocoded addresses with fuzzy matching support.
 
@@ -31,9 +31,9 @@ class FuzzyAddressBook:
         address_didnt_exist (int): Count of addresses that did not exist in the book during lookups.
     """
 
-    def __init__(self, fuzz: bool = True):
+    def __init__(self, fuzz: bool = False):
         """
-        Initialize an empty FuzzyAddressBook.
+        Initialize an empty AddressBook.
         """
         self.__addresses : Dict[str, Location] = {}
         self.__alt_addr_to_address_lookup: Dict[str, List[str]] = {}
@@ -49,7 +49,7 @@ class FuzzyAddressBook:
         (filename, line_number, function_name, stack)= logger.findCaller(stacklevel=2)
         # Print the caller information
         
-        logger.debug(f"Initialized FuzzyAddressBook : Caller: {function_name} in {filename} at line {line_number}")
+        logger.debug(f"Initialized AddressBook : Caller: {function_name} in {filename} at line {line_number}")
         
 
     def get_summary_row_dict(self, address: str) -> Dict[str, Any]:

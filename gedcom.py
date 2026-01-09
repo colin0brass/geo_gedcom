@@ -18,7 +18,6 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Tuple
 
-from .addressbook import FuzzyAddressBook
 from .gedcom_parser import GedcomParser
 from .person import Person
 from .app_hooks import AppHooks
@@ -75,12 +74,12 @@ class Gedcom:
     Attributes:
         gedcom_parser (GedcomParser): Instance for parsing GEDCOM files and extracting data.
         people (Dict[str, Person]): Dictionary of all Person objects indexed by xref_id.
-        address_book (FuzzyAddressBook): Address book of all places found in the GEDCOM file.
+        address_list (List[str]): List of all unique place names found in the GEDCOM file.
+        app_hooks (Optional[AppHooks]): Optional application hooks for custom processing.
     """
     __slots__ = [
         'gedcom_parser',
         'people',
-        'address_book', # TODO 
         'address_list',
         'app_hooks'
     ]
@@ -93,7 +92,6 @@ class Gedcom:
             app_hooks=self.app_hooks
         )
         self.people = {}
-        self.address_book = FuzzyAddressBook()
 
         self._parse_people()
 

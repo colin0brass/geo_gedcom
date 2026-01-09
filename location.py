@@ -49,8 +49,6 @@ class Location:
     def __init__(
         self,
         used: int = 0,
-        latitude: Optional[float] = None,
-        longitude: Optional[float] = None,
         latlon: Optional[LatLon] = None,
         country_code: Optional[str] = None,
         country_name: Optional[str] = None,
@@ -70,12 +68,7 @@ class Location:
         Initialize a Location object with geocoded information.
         """
         self.used = used
-        if (latitude is not None and longitude is not None):
-            self.latlon = LatLon(latitude, longitude)
-        elif latlon is not None:
-            self.latlon = latlon
-        else:
-            self.latlon = None
+        self.latlon = latlon
         self.country_code = country_code.upper() if country_code else None
         self.country_name = country_name
         self.continent = continent
@@ -91,30 +84,31 @@ class Location:
         self.importance = importance
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Location":
+    def from_dict(cls, d) -> "Location":
         """
-        Create a Location object from a dictionary.
+        Create a Location object from a dictionary or GeoCacheEntry.
 
         Args:
-            d (dict): Dictionary of location attributes.
+            d (dict or GeoCacheEntry): Dictionary or GeoCacheEntry of location attributes.
 
         Returns:
             Location: Location instance.
         """
-        # Track unknown attributes
+        # Accept both dict and dataclass (GeoCacheEntry)
+        if hasattr(d, 'as_dict') and callable(getattr(d, 'as_dict', None)):
+            d = d.as_dict()
+        if not isinstance(d, dict):
+            raise TypeError(f"from_dict expects a dict or GeoCacheEntry, got {type(d)}")
         unknown = []
         obj = cls()
         for key, value in d.items():
             if key.lower() == 'class':
                 setattr(obj, 'class_', value)
-            elif key.lower() in ('latitude', 'longitude'):
-                continue
             elif key.lower() == 'place':
                 setattr(obj, 'address', value)
             elif key.lower() == 'alt_place':
                 setattr(obj, 'alt_addr', value)
             else:
-                # make it ignore extra columns in the CSV file
                 if key in obj.__slots__:
                     setattr(obj, key, value)
                 else:
@@ -122,10 +116,6 @@ class Location:
                         unknown.append(key)
         if unknown:
             logger.info("Ignoring unknown attribute '%s' in Location.from_dict", unknown)
-        lat_key = next((k for k in d.keys() if k.lower() in ("latitude", "lat")), None)
-        lon_key = next((k for k in d.keys() if k.lower() in ("longitude", "long")), None)
-        if lat_key and lon_key:
-            obj.latlon = LatLon(d[lat_key], d[lon_key])
         obj.used = 0
         return obj
     

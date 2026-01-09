@@ -15,14 +15,10 @@ Last updated: 2025-12-06
 __all__ = ['Person']
 
 import logging
-import re
 from typing import Dict, Union, Optional, List
 
-from ged4py.model import Record, NameRec
-from ged4py.date import DateValue
 from .lat_lon import LatLon
 from .location import Location
-from .gedcom_date import GedcomDate
 from .partner import Partner
 from .marriage import Marriage
 from .life_event import LifeEvent
@@ -145,7 +141,7 @@ class Person:
         """
         event_type = event_type.lower()
         return self.__life_event_set.get_events(event_type, date_order=date_order)
-        
+
     def get_event(self, event_type: str) -> Optional[LifeEvent]:
         """
         Returns the first life event for the specified event type.
@@ -157,7 +153,19 @@ class Person:
         """
         events = self.get_events(event_type)
         return events[0] if events else None
-        
+
+    def iter_life_events(self):
+        """
+        Generator that yields all life events for this person.
+        Allows external code to iterate and optionally update events (e.g., geolocate).
+        Yields:
+            LifeEvent or Marriage: Each life event instance for this person.
+        """
+        for event_type in self.event_type_list:
+            events = self.__life_event_set.get_events(event_type)
+            for event in events:
+                yield event
+
     def __str__(self) -> str:
         """
         Returns a string representation of the person (xref and name).
@@ -206,6 +214,19 @@ class Person:
         elif death_event and death_event.location and death_event.location.latlon and death_event.location.latlon.hasLocation():
             best_location = death_event.location
             location_type = 'Death'
+        else:
+            # Check other events for a location
+            for event_type in self.event_type_list:
+                events = self.get_events(event_type)
+                for event in events:
+                    if isinstance(event, Marriage):
+                        event = event.event
+                    if event.location and event.location.latlon and event.location.latlon.hasLocation():
+                        best_location = event.location
+                        location_type = event_type.capitalize()
+                        break
+                if best_location:
+                    break
         return best_location, location_type
     
     def bestlocation(self):

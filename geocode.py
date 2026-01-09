@@ -28,7 +28,8 @@ from .geo_config import GeoConfig
 from .app_hooks import AppHooks
 
 from .location import Location
-from .addressbook import FuzzyAddressBook
+from .lat_lon import LatLon
+from .addressbook import AddressBook
 from .geocache import GeoCache
 
 # Re-use higher-level logger (inherits configuration from main script)
@@ -200,8 +201,7 @@ class Geocode:
             continent = self.geo_config.get_continent_for_country_code(country_code)
             location = Location(
                 used=1,
-                latitude=geo_location.latitude,
-                longitude=geo_location.longitude,
+                latlon=LatLon(geo_location.latitude, geo_location.longitude),
                 country_code=country_code,
                 country_name=country_name,
                 continent=continent,
@@ -218,19 +218,19 @@ class Geocode:
 
         return location
 
-    def separate_cached_locations(self, address_book: FuzzyAddressBook) -> Tuple[FuzzyAddressBook, FuzzyAddressBook]:
+    def separate_cached_locations(self, address_book: AddressBook) -> Tuple[AddressBook, AddressBook]:
         """
         Separate addresses into cached and non-cached address books.
 
         Args:
-            address_book (FuzzyAddressBook): Address book containing full addresses.
+            address_book (AddressBook): Address book containing full addresses.
 
         Returns:
-            Tuple[FuzzyAddressBook, FuzzyAddressBook]: (cached_places, non_cached_places)
+            Tuple[AddressBook, AddressBook]: (cached_places, non_cached_places)
         """
         fuzz = address_book.fuzz
-        cached_places = FuzzyAddressBook(fuzz=fuzz)
-        non_cached_places = FuzzyAddressBook(fuzz=fuzz)
+        cached_places = AddressBook(fuzz=fuzz)
+        non_cached_places = AddressBook(fuzz=fuzz)
         for place, data in address_book.addresses().items():
             place_lower = place.lower()
             if not self.always_geocode and (place_lower in self.geo_cache.geo_cache):
@@ -261,7 +261,7 @@ class Geocode:
         if not self.always_geocode:
             use_place_name, cache_entry = self.geo_cache.lookup_geo_cache_entry(place)
 
-        if cache_entry and cache_entry.get("no_result"):
+        if cache_entry and cache_entry.no_result:
             self.num_from_cache_no_location_result += 1
             return None
         
@@ -269,12 +269,12 @@ class Geocode:
 
         if cache_entry and not self.always_geocode:
             self.num_from_cache += 1
-            if cache_entry.get('latitude') and cache_entry.get('longitude'):
+            if cache_entry.latitude and cache_entry.longitude:
                 found_in_cache = True
                 location = Location.from_dict(cache_entry)
-                if cache_entry.get('found_country', False) == False or cache_entry.get('country_name', '') == '':
+                if (not cache_entry.found_country) or (cache_entry.country_name == ''):
                     # Not sure this is needed
-                    if cache_entry.get('found_country', False):
+                    if cache_entry.found_country:
                         logger.info(f"Found country in cache for {use_place_name}, but it was not marked as found.")
                         location.found_country = True
                         location.country_code = country_code.upper()

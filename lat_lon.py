@@ -21,6 +21,7 @@ class LatLon:
         lat (Optional[float]): Latitude value.
         lon (Optional[float]): Longitude value.
     """
+
     def __init__(self, lat: Union[str, float, None], lon: Union[str, float, None]):
         """
         Initialize LatLon with latitude and longitude.
@@ -31,6 +32,7 @@ class LatLon:
         """
         self.lat = self._parse_lat(lat)
         self.lon = self._parse_lon(lon)
+
     @staticmethod
     def _parse_lat(lat: Union[str, float, None]) -> Optional[float]:
         """
@@ -130,6 +132,7 @@ class LatLon:
             str: Representation of LatLon.
         """
         return f"[{self.lat},{self.lon}]"
+    
     def __str__(self) -> str:
         """
         User-friendly string representation.
@@ -154,3 +157,4 @@ class LatLon:
         if len(parts) == 2:
             return cls(parts[0], parts[1])
         return cls(None, None)
+    

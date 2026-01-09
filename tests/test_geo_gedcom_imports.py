@@ -10,7 +10,7 @@ import pytest
         "LifeEvent",
         "Location",
         "LatLon",
-        "FuzzyAddressBook",
+        "AddressBook",
         "GedcomDate",
     ],
 )

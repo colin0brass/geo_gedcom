@@ -1,14 +1,14 @@
 import pytest
-from geo_gedcom.addressbook import FuzzyAddressBook
+from geo_gedcom.addressbook import AddressBook
 
-def test_fuzzy_addressbook_init():
-    """Test FuzzyAddressBook can be instantiated."""
-    ab = FuzzyAddressBook()
-    assert isinstance(ab, FuzzyAddressBook)
+def test_addressbook_init():
+    """Test AddressBook can be instantiated."""
+    ab = AddressBook()
+    assert isinstance(ab, AddressBook)
 
-def test_fuzzy_addressbook_add_and_search():
+def test_addressbook_add_and_search():
     """Test adding and searching for an address (if supported)."""
-    ab = FuzzyAddressBook()
+    ab = AddressBook()
     if hasattr(ab, "add") and hasattr(ab, "search"):
         ab.add("123 Main St", (51.5, -0.1))
         result = ab.search("123 Main St")
@@ -17,18 +17,18 @@ def test_fuzzy_addressbook_add_and_search():
         # If not implemented, pass the test
         pass
 
-def test_fuzzy_addressbook_empty_search():
+def test_addressbook_empty_search():
     """Test searching for a non-existent address returns None or raises."""
-    ab = FuzzyAddressBook()
+    ab = AddressBook()
     if hasattr(ab, "search"):
         result = ab.search("Nonexistent Address")
         assert result is None or result == ()
     else:
         pass
 
-def test_fuzzy_addressbook_invalid_add():
+def test_addressbook_invalid_add():
     """Test adding an invalid address raises an error (if supported)."""
-    ab = FuzzyAddressBook()
+    ab = AddressBook()
     if hasattr(ab, "add"):
         with pytest.raises(Exception):
             ab.add(None, None)
