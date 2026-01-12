@@ -313,13 +313,11 @@ class GedcomParser:
         people = {}
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
             self.app_hooks.report_step(info="Loading People", target=self.num_people, plus_step=0)
-        idx = 0
-        for record in records0('INDI'):
+        for idx, record in enumerate(records0('INDI')):
             people[record.xref_id] = self.__create_person(record)
             if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
                 if self.app_hooks.stop_requested():
                     break
-            idx += 1
             if idx % 100 == 0:
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
                     self.app_hooks.report_step(info=f"Loaded {people[record.xref_id].name}", plus_step=100)
@@ -336,8 +334,7 @@ class GedcomParser:
         Returns:
             Dict[str, Person]: Updated dictionary of Person objects.
         """
-        idx = 0
-        for record in records('FAM'):
+        for idx, record in enumerate(records('FAM')):
             # Get partner list from family record
             # Including non-traditional families by collecting all partners
             partner_person_list = []
@@ -382,7 +379,6 @@ class GedcomParser:
             if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
                 if self.app_hooks.stop_requested():
                     break
-            idx += 1
             if idx % 100 == 0:
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
                     self.app_hooks.report_step(plus_step=100)

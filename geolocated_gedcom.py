@@ -121,7 +121,7 @@ class GeolocatedGedcom(Gedcom):
         num_non_cached_places = non_cached_places.len()
         logger.info(f"Found {num_cached_places} cached places, {num_non_cached_places} non-cached places.")
 
-        logger.info(f"Geolocating {num_cached_places} cached places...")
+        logger.info(f"Matching {num_cached_places} cached places...")
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
             self.app_hooks.report_step(f"Matching cached places ...", target=num_cached_places, reset_counter=True)
         for idx, (place, data) in enumerate(cached_places.addresses().items(), 1):
@@ -140,7 +140,7 @@ class GeolocatedGedcom(Gedcom):
 
         logger.info(f"Geolocating {num_non_cached_places} non-cached places...")
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step(f"Geolocating uncached places", target=num_non_cached_places, reset_counter=True)
+            self.app_hooks.report_step(f"Geolocating uncached places ...", target=num_non_cached_places, reset_counter=True)
         for idx, (place, data) in enumerate(non_cached_places.addresses().items(), 1):
             use_place = data.alt_addr if data.alt_addr else place
             location = self.geocoder.lookup_location(use_place)
