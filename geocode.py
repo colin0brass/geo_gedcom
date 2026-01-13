@@ -286,7 +286,7 @@ class Geocode:
                 if not location.found_country:
                     logger.info(f"Country not found in cache for {use_place_name}")
 
-        if not found_in_cache:
+        if not found_in_cache and not self.cache_only:
             self.num_geocoded += 1
             location = self.geocode_address(place_with_country, country_code, country_name, found_country, address_depth=0)
             if location is not None:

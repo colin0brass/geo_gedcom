@@ -108,6 +108,11 @@ class Location:
                 setattr(obj, 'address', value)
             elif key.lower() == 'alt_place':
                 setattr(obj, 'alt_addr', value)
+            elif key.lower() == 'latitude' and 'longitude' in d:
+                lat = d.get('latitude')
+                lon = d.get('longitude')
+                if lat is not None and lon is not None:
+                    obj.latlon = LatLon(lat=float(lat), lon=float(lon))
             else:
                 if key in obj.__slots__:
                     setattr(obj, key, value)
