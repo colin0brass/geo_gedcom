@@ -312,7 +312,7 @@ class GedcomParser:
         """
         people = {}
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step(info="Loading People", target=self.num_people, plus_step=0)
+            self.app_hooks.report_step(info="Loading People", target=self.num_people+self.num_families, plus_step=0)
         for idx, record in enumerate(records0('INDI')):
             people[record.xref_id] = self.__create_person(record)
             if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
@@ -442,7 +442,7 @@ class GedcomParser:
             with GedcomReader(str(self.gedcom_file)) as g:
                 records = g.records0
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step("Loading people from GED", target=self.num_people,reset_counter=True, plus_step=0)
+                    self.app_hooks.report_step("Loading people from GED", target=self.num_people+ self.num_families,reset_counter=True, plus_step=0)
                 self._cached_people = self._create_people(records)
                 if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
                     self.app_hooks.report_step("Linking families from GED", target=self.num_people + self.num_families, plus_step=0)
