@@ -201,11 +201,19 @@ class GeolocatedGedcom(Gedcom):
         """
         Geolocate all life events for all people using the iter_life_events generator.
         """
+        exit_requested: bool = False
         for person in self.people.values():
             if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
                 self.app_hooks.report_step(info=f"Reviewing {getattr(person, 'name', '-Unknown-')}")
             for event in person.iter_life_events():
                 self.__geolocate_event(event)
+                if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+                    if self.app_hooks.stop_requested():
+                        logger.info("Locating people process stopped by user.")
+                        exit_requested = True
+                        break
+            if exit_requested:
+                break
 
     def __geolocate_event(self, event: LifeEvent) -> LifeEvent:
         """
