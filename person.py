@@ -229,7 +229,7 @@ class Person:
                     break
         return best_location, location_type
     
-    def bestlocation(self):
+    def bestlocation(self) -> list[str]:
         """
         Returns the best known location for the person as [latlon, description].
         """
