@@ -44,7 +44,6 @@ class GedcomDate:
     def __init__(self, date: Union[DateValue, str, "GedcomDate", None], simplify_range_policy: str = 'first'):
         """
         Initialize a GedcomDate instance.
-
         Args:
             date: The original date value (DateValue, GregorianDate, str, GedcomDate, or None).
             simplify_range_policy: Policy for range simplification ('first', 'last', or 'none').
@@ -52,18 +51,6 @@ class GedcomDate:
         self.original: Union[DateValue, str, "GedcomDate", None] = date
         self.date = self._parse(date)
         self.simplify_range_policy: str = simplify_range_policy
-
-    @property
-    def kind(self):
-        """
-        Returns the kind of the underlying date value if it is a ged4py.date.DateValue, else None.
-
-        Returns:
-            str or None: The kind of the date value, or None if not available.
-        """
-        if hasattr(self.date, 'kind'):
-            return self.date.kind
-        return None
 
     def parse_str_year(self, year_str: str) -> Optional[int]:
         """
@@ -89,22 +76,44 @@ class GedcomDate:
     def _parse(self, date: Union[DateValue, str, "GedcomDate", None]) -> Union[DateValue, str, None]:
         """
         Parse the input date into a DateValue, or return the string as is.
-
-        Args:
-            date: The input date value (DateValue, str, GedcomDate, or None).
-
-        Returns:
-            DateValue, str, or None: Parsed date value or original string.
+        Handles BCE/BC and calendar prefixes for GEDCOM v7.
         """
         if isinstance(date, GedcomDate):
             return date.date
         elif isinstance(date, DateValue) or date is None:
             return date
         elif isinstance(date, str):
+            # Preprocess for BCE/BC and calendar prefixes
+            s = date.strip()
+            calendar = None
+            # Extract calendar prefix if present
+            calendar_match = re.match(r'^(JULIAN|GREGORIAN|FRENCH_R|HEBREW)\s+', s, re.I)
+            if calendar_match:
+                calendar = calendar_match.group(1).upper()
+                s = s[calendar_match.end():].strip()
+            # Handle BCE/BC (convert to negative year)
+            # Replace each BCE/BC year with its own negative value
+            def bce_repl(match):
+                return str(-int(match.group(1)))
+            s = re.sub(r'(\d{1,4})\s*(BCE|BC)', bce_repl, s, flags=re.I)
+            # Re-add calendar prefix if present (for fallback)
+            s_for_parse = s
+            if calendar:
+                # Only pass through if Gregorian/Julian, fallback for others
+                if calendar in ("GREGORIAN", "JULIAN"):
+                    s_for_parse = f"{calendar} {s}"
+                else:
+                    # For unsupported calendars, just return the string
+                    return f"{calendar} {s}"
             try:
-                return DateValue.parse(date)
+                return DateValue.parse(s_for_parse)
             except Exception as e:
-                logger.warning(f"Failed to parse date string '{date}': {e}")
+                logger.warning(f"Failed to parse date string '{date}' (preprocessed: '{s_for_parse}'): {e}")
+                # If the string looks like a range phrase, try phrase parsing for BCE/BC support
+                if s_for_parse.strip().upper().startswith('BET '):
+                    phrase_result = self._date_from_phrase(s_for_parse)
+                    if phrase_result is not None:
+                        return phrase_result
                 return date
         elif isinstance(date, int):
             if self.looks_like_year(date):
@@ -144,6 +153,11 @@ class GedcomDate:
             return None
         kind = getattr(self.date, 'kind', None)
         if kind is None:
+            # If the date is a string and looks like a range phrase, try phrase parsing
+            if isinstance(self.date, str) and self.simplify_range_policy == 'none':
+                phrase_result = self._date_from_phrase()
+                if isinstance(phrase_result, tuple):
+                    return phrase_result
             return None
         if kind.name in ("RANGE", "PERIOD"):
             date1 = getattr(self.date, 'date1', None)
@@ -160,7 +174,11 @@ class GedcomDate:
             return self._date_from_phrase()
         else: # SIMPLE, ABOUT, AFTER, BEFORE, etc.
             if isinstance(self.date, str):
-                return self._parse_fallback_phrase(self.date)
+                # If the fallback phrase returns a tuple, return it (for BCE ranges)
+                fallback = self._parse_fallback_phrase(self.date)
+                if self.simplify_range_policy == 'none' and isinstance(fallback, tuple):
+                    return fallback
+                return fallback
             else:
                 return self.date.date
 
@@ -231,7 +249,7 @@ class GedcomDate:
             else:
                 return None
 
-    def _date_from_phrase(self) -> Optional[Union[GregorianDate, str, tuple]]:
+    def _date_from_phrase(self, phrase: str = None) -> Optional[Union[GregorianDate, str, tuple]]:
         """
         Extract and normalize a date from a GEDCOM date phrase.
 
@@ -242,12 +260,12 @@ class GedcomDate:
         Returns:
             GregorianDate, str, tuple, or None: The normalized date value.
         """
-        phrase = getattr(self.date, 'phrase', None)
+        if phrase is None:
+            phrase = getattr(self.date, 'phrase', None)
         if not phrase:
             logger.warning('GedcomDate: _date_from_phrase: no phrase available on date.value')
             return None
-        
-        if phrase is None or not isinstance(phrase, str):
+        if not isinstance(phrase, str):
             return None
 
         result = self._parse_range_phrase(phrase)
@@ -263,73 +281,107 @@ class GedcomDate:
 
     def _parse_range_phrase(self, phrase: str) -> Optional[tuple]:
         """
-        Parse a GEDCOM range phrase (e.g., 'BET JUL AND SEP 1913') and return a tuple of GregorianDate objects.
-
-        Args:
-            phrase (str): GEDCOM date phrase representing a range.
-
-        Returns:
-            tuple or None: Tuple of GregorianDate objects (start, end) or None if not matched.
+        Parse a GEDCOM range phrase (e.g., 'BET JUL AND SEP 1913', 'BET 50 BCE AND 44 BCE', 'BET 1 JAN 44 BCE AND 15 MAR 44 BCE').
         """
-        range_re = re.compile(r'BET\s+([A-Z]{3,9})\s+AND\s+([A-Z]{3,9})\s+(\d{3,4})', re.I)
-        m = range_re.match(phrase.strip())
+        s = phrase.strip()
+        # Remove calendar prefix if present
+        calendar_match = re.match(r'^(JULIAN|GREGORIAN|FRENCH_R|HEBREW)\s+', s, re.I)
+        if calendar_match:
+            s = s[calendar_match.end():].strip()
+        # Try full date range: 'BET 1 JAN 44 BCE AND 15 MAR 44 BCE'
+        full_range_re = re.compile(r'^BET\s+(\d{1,2})\s+([A-Za-z]{3,9})\s+(-?\d{1,4}|\d{1,4}\s*(?:BCE|BC))\s+AND\s+(\d{1,2})\s+([A-Za-z]{3,9})\s+(-?\d{1,4}|\d{1,4}\s*(?:BCE|BC))$', re.I)
+        m = full_range_re.match(s)
         if m:
-            month1, month2, year = m.groups()
-            year = int(year)
-            month1_str = month1.upper()[:3]
-            month2_str = month2.upper()[:3]
-            start = GregorianDate(year=year, month=month1_str)
-            end = GregorianDate(year=year, month=month2_str)
+            d1, m1, y1, d2, m2, y2 = m.groups()
+            def parse_y(y):
+                bce = re.search(r'(\d{1,4})\s*(BCE|BC)', y, re.I)
+                return -int(bce.group(1)) if bce else int(y)
+            start = GregorianDate(year=parse_y(y1), month=m1.upper()[:3], day=int(d1))
+            end = GregorianDate(year=parse_y(y2), month=m2.upper()[:3], day=int(d2))
             return (start, end)
+        # Try month range: 'BET JUL AND SEP 1913'
+        month_range_re = re.compile(r'^BET\s+([A-Za-z]{3,9})\s+AND\s+([A-Za-z]{3,9})\s+(-?\d{1,4}|\d{1,4}\s*(?:BCE|BC))$', re.I)
+        m = month_range_re.match(s)
+        if m:
+            m1, m2, y = m.groups()
+            bce = re.search(r'(\d{1,4})\s*(BCE|BC)', y, re.I)
+            year = -int(bce.group(1)) if bce else int(y)
+            start = GregorianDate(year=year, month=m1.upper()[:3])
+            end = GregorianDate(year=year, month=m2.upper()[:3])
+            return (start, end)
+        # Try year range: 'BET 50 BCE AND 44 BCE' or 'BET -50 AND -44'
+        year_range_re = re.compile(r'^BET\s+(-?\d{1,4})\s*(BCE|BC)?\s+AND\s+(-?\d{1,4})\s*(BCE|BC)?$', re.I)
+        m = year_range_re.match(s)
+        if m:
+            y1, bce1, y2, bce2 = m.groups()
+            # If BCE/BC present, force negative, else use as-is (already negative if BCE replaced)
+            if bce1 or bce2:
+                y1 = -int(y1.lstrip('-'))
+                y2 = -int(y2.lstrip('-'))
+            else:
+                y1 = int(y1)
+                y2 = int(y2)
+            return (GregorianDate(year=y1), GregorianDate(year=y2))
         return None
 
     def _parse_ordinal_phrase(self, phrase: str) -> Optional[GregorianDate]:
         """
-        Parse an ordinal date phrase (e.g., '15 JUL 1913') and return a GregorianDate object.
-
-        Args:
-            phrase (str): GEDCOM date phrase representing an ordinal date.
-
-        Returns:
-            GregorianDate or None: GregorianDate object or None if not matched.
+        Parse an ordinal date phrase (e.g., '15 JUL 1913', '15 MAR 44 BCE', 'JULIAN 1 JAN 44 BCE') and return a GregorianDate object.
         """
-        ordinal_date_re = re.compile(r'(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\s+(\d{4})')
-        m = ordinal_date_re.match(phrase.strip())
+        # Remove calendar prefix if present
+        s = phrase.strip()
+        calendar_match = re.match(r'^(JULIAN|GREGORIAN|FRENCH_R|HEBREW)\s+', s, re.I)
+        if calendar_match:
+            s = s[calendar_match.end():].strip()
+        # Match day, month, year (year can be negative or BCE/BC)
+        ordinal_date_re = re.compile(r'^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\s+(-?\d{1,4}|\d{1,4}\s*(?:BCE|BC))$', re.I)
+        m = ordinal_date_re.match(s)
         if m:
             day, month, year = m.groups()
-            return GregorianDate(year=int(year), month=month.upper()[:3], day=int(day))
+            # Handle BCE/BC
+            bce = re.search(r'(\d{1,4})\s*(BCE|BC)', year, re.I)
+            if bce:
+                y = -int(bce.group(1))
+            else:
+                y = int(year)
+            return GregorianDate(year=y, month=month.upper()[:3], day=int(day))
         return None
 
     def _parse_fallback_phrase(self, phrase: str) -> Optional[Union[GregorianDate, str]]:
         """
         Parse a fallback date phrase and return a GregorianDate or string if possible.
-
-        Handles cases like 'Spring 1913', '1913', or partial dates.
-
-        Args:
-            phrase (str): Free-text GEDCOM date phrase.
-
-        Returns:
-            GregorianDate, str, or None: Parsed date value or original phrase.
+        Handles BCE/BC, calendar prefixes, and partial dates.
         """
-        YEAR_RE = re.compile(r'(?<!\d)(-?\d{3,4})(?!\d)')
+        if not phrase or not isinstance(phrase, str):
+            return None
+        s = phrase.strip()
+        # Remove calendar prefix for fallback parse
+        calendar_match = re.match(r'^(JULIAN|GREGORIAN|FRENCH_R|HEBREW)\s+', s, re.I)
+        if calendar_match:
+            calendar = calendar_match.group(1).upper()
+            s = s[calendar_match.end():].strip()
+            if calendar not in ("GREGORIAN", "JULIAN"):
+                return f"{calendar} {s}"
+        # Handle BCE/BC (convert to negative year)
+        bce_match = re.search(r'(\d{1,4})\s*(BCE|BC)', s, re.I)
+        year = None
+        if bce_match:
+            year = -int(bce_match.group(1))
+            s = re.sub(r'(\d{1,4})\s*(BCE|BC)', str(year), s, flags=re.I)
+        # Now try to extract year, month, day
+        YEAR_RE = re.compile(r'(?<!\d)(-?\d{1,4})(?!\d)')
         MONTH_RE = re.compile(r'(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|JUNE|JULY|SEPTEMBER|OCTOBER|DECEMBER|AUGUST|NOVEMBER|MARCH|FEBRUARY|MAY|APRIL)', re.I)
         DAY_RE = re.compile(r'(?<!\d)(\d{1,2})(?=\s+[A-Z]{3,9})')
 
-        if not phrase or not isinstance(phrase, str):
-            return None
-
-        year_match = YEAR_RE.search(phrase)
-        year = int(year_match.group(1)) if year_match else None
-
-        month_match = MONTH_RE.search(phrase)
+        year_match = YEAR_RE.search(s)
+        if year is None and year_match:
+            year = int(year_match.group(1))
+        month_match = MONTH_RE.search(s)
         month = month_match.group(1) if month_match else None
         month_str = month.upper()[:3] if month else None
-
-        day_match = DAY_RE.search(phrase)
+        day_match = DAY_RE.search(s)
         day = int(day_match.group(1)) if day_match else None
-
-        if year:
+        if year is not None:
             return GregorianDate(year=year, month=month_str, day=day)
         if month or day:
             parts = []
