@@ -116,12 +116,12 @@ class GedcomDate:
                     if phrase_result is not None:
                         result = phrase_result
             # Generic fallback for open-ended and range phrases
-            to_match = re.match(r'^TO\s+(\d{1,4})$', s, re.I)
-            if to_match:
-                return f"TO {to_match.group(1)}"
-            bet_match = re.match(r'^BET\s+(\d{1,4})\s+AND\s+(\d{1,4})$', s, re.I)
-            if bet_match:
-                return f"BET {bet_match.group(1)} AND {bet_match.group(2)}"
+            # to_match = re.match(r'^TO\s+(\d{1,4})$', s, re.I)
+            # if to_match:
+            #     return f"TO {to_match.group(1)}"
+            # bet_match = re.match(r'^BET\s+(\d{1,4})\s+AND\s+(\d{1,4})$', s, re.I)
+            # if bet_match:
+            #     return f"BET {bet_match.group(1)} AND {bet_match.group(2)}"
             return result if result is not None else date
         elif isinstance(date, int):
             try:
@@ -129,11 +129,8 @@ class GedcomDate:
                     return DateValue.parse(str(date))
             except Exception:
                 pass
-            # Special fallback for test cases
-            if date == 324:
-                return "TO 324"
-            if date == 1648:
-                return "1648/1649"
+            # Generic fallback for int input: if plausibly a year, return 'TO <year>' for open-ended periods
+            # (We cannot know the context for dual year/phrase from a single int, so just return the int)
             return date
         else:
             raise TypeError(f"Unsupported date type: {type(date)}")
@@ -163,14 +160,20 @@ class GedcomDate:
         Returns:
             GregorianDate, str, tuple, or None: The resolved date value.
         """
-        # Force fallback string for these test cases if original input matches
-        if isinstance(self.original, str):
-            s = self.original.strip().upper()
-            if s == "TO 324":
-                return "TO 324"
-            if s == "BET 1648 AND 1649":
-                return "1648/1649"
+        # Generic fallback for open-ended and dual year/phrase cases is handled in _parse_fallback_phrase
         if not self.date:
+            # Fallback for open-ended and dual year/phrase cases
+            if isinstance(self.original, str):
+                s = self.original.strip().upper()
+                # Open-ended TO <year>
+                m = re.match(r'^TO\s+(\d{1,4})$', s)
+                if m:
+                    return (None, GregorianDate(year=int(m.group(1))))
+                # Dual year/phrase: BET <year1> AND <year2>
+                m = re.match(r'^BET\s+(\d{3,4})\s+AND\s+(\d{3,4})$', s)
+                if m:
+                    return (GregorianDate(year=int(m.group(1))), GregorianDate(year=int(m.group(2))))
+            # Only return None for truly empty or None input
             return None
         kind = getattr(self.date, 'kind', None)
         if kind is None:

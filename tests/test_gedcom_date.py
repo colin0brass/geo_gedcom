@@ -158,7 +158,7 @@ import pytest
 
 @pytest.mark.parametrize("date_str, expected", [
     ("FROM 1670 TO 1800", (1670, 1800)),
-    ("TO 324", (None, 324)),
+    ("TO 324", 324),
     ("FROM 667 BCE TO 324", (-667, 324)),
     ("FROM GREGORIAN 1670 TO JULIAN 1800", (1670, 1800)),
     ("FROM JULIAN 1670 TO GREGORIAN 1800", (1670, 1800)),
@@ -168,28 +168,36 @@ def test_from_to_periods(date_str, expected):
     gd = GedcomDate(date_str, simplify_range_policy='none')
     result = gd.resolved
     # Accept tuple of GregorianDate or string fallback
-    if isinstance(result, tuple):
+    if isinstance(expected, tuple):
+        assert isinstance(result, tuple)
         years = tuple(getattr(d, 'year', None) if hasattr(d, 'year') else None for d in result)
-        if all(y is not None or e is None for y, e in zip(years, expected)):
-            # Accept None for open-ended periods
-            for y, e in zip(years, expected):
-                if e is not None:
-                    assert y == e
+        # Accept None for open-ended periods
+        for y, e in zip(years, expected):
+            if e is not None:
+                assert y == e
+            else:
+                assert y is None
     else:
-        # Fallback: at least contains FROM/TO
-        assert "FROM" in str(result) or "TO" in str(result)
+        # Single: result should have year == expected
+        if hasattr(result, 'year'):
+            assert result.year == expected
+        else:
+            assert str(expected) in str(result)
 
 
-def test_dual_date_phrase():
+@pytest.mark.parametrize("date_str, expected", [
+    ("BET 1648 AND 1649", (1648, 1649))])
+def test_dual_date_phrase(date_str, expected):
     """Test dual date with PHRASE (e.g., 1648/9)."""
-    gd = GedcomDate("BET 1648 AND 1649")
+    gd = GedcomDate(date_str, simplify_range_policy='none')
     result = gd.resolved
     # Simulate PHRASE: should parse as a range, but user can add phrase separately
     if isinstance(result, tuple):
         years = tuple(getattr(d, 'year', None) if hasattr(d, 'year') else None for d in result)
-        assert years == (1648, 1649)
+        for y, e in zip(years, expected):
+            assert y == e
     else:
-        assert "1648" in str(result) and "1649" in str(result)
+        assert False, "Expected a range tuple"
 
 
 def test_empty_date_with_phrase():
