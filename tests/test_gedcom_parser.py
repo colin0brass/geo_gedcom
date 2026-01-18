@@ -32,7 +32,7 @@ def test_gedcom_parser_init_file(minimal_gedcom_file):
 
 def test_parse_people(minimal_gedcom_file):
     parser = GedcomParser(gedcom_file=minimal_gedcom_file)
-    people = parser.parse_people()
+    people = parser.people
     assert isinstance(people, dict)
     assert len(people) == 1
     person = next(iter(people.values()))
@@ -46,6 +46,6 @@ def test_parse_people(minimal_gedcom_file):
 def test_parse_people_no_file(tmp_path):
     # Should not raise, but return empty dict
     parser = GedcomParser(gedcom_file=tmp_path / "nonexistent.ged")
-    people = parser.parse_people()
+    people = parser.people
     assert isinstance(people, dict)
     assert len(people) == 0

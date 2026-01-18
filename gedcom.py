@@ -91,25 +91,13 @@ class Gedcom:
             only_use_photo_tags=only_use_photo_tags,
             app_hooks=self.app_hooks
         )
-        self.people = {}
-
-        self._parse_people()
+        self.people = self.gedcom_parser.people
 
     def close(self):
         """
         Close the GEDCOM parser and release any resources.
         """
         self.gedcom_parser.close()
-
-    def _parse_people(self) -> Dict[str, Person]:
-        """
-        Parse people from the GEDCOM file and populate the people dictionary.
-
-        Returns:
-            Dict[str, Person]: Dictionary of Person objects indexed by xref_id.
-        """
-        self.people = self.gedcom_parser.parse_people()
-        return self.people
     
     def read_full_address_list(self) -> None:
         """

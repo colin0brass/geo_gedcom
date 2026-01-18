@@ -32,17 +32,16 @@ class GedcomParser:
 
     Attributes:
         gedcom_file (Optional[Path]): Path to GEDCOM file.
-        _cached_people (Optional[Dict[str, Person]]): Cached people dictionary.
         only_use_photo_tags (bool): Whether to use only _PHOTO tags for photos.
         simplify_date (bool): Whether to simplify date parsing.
         simplify_range_policy (str): Policy for range simplification ('first', 'approximate').
     """
     __slots__ = [
         'gedcom_file',
-        '_cached_people',
         'simplify_date',
         'simplify_range_policy',
         'app_hooks',
+        'people',
         'num_people',
         'num_families',
         'has_photo_tag',
@@ -63,8 +62,9 @@ class GedcomParser:
         """
         self.app_hooks = app_hooks
 
-        # caches populated by _load_people_and_places()
-        self._cached_people = None
+        # Dict[str, Person]: Dictionary of Person objects indexed by xref_id.
+        self.people: Dict[str, Person] = {}
+
         self.simplify_date = True
         self.simplify_range_policy = 'first'  # 'first' or 'approximate'
         self.num_people = 0
@@ -80,14 +80,54 @@ class GedcomParser:
         else:
             self.only_use_photo_tags = only_use_photo_tags
 
+        self._load_people_and_places()
+
     def close(self):
         """Placeholder for compatibility."""
         pass
 
+    def _report_step(self, info: str = "", target: int = 0, reset_counter: bool = False, plus_step: int = 0) -> None:
+        """
+        Report a step via app hooks if available. (Private method)
+
+        Args:
+            info (str): Information message.
+            target (int): Target count for progress.
+            reset_counter (bool): Whether to reset the counter.
+            plus_step (int): Incremental step count.
+        """
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step(info=info, target=target, reset_counter=reset_counter, plus_step=plus_step)
+        else:
+            logger.info(info)
+
+    def _stop_requested(self, logger_stop_message: str = "Stop requested by user") -> bool:
+        """
+        Check if stop has been requested via app hooks. (Private method)
+
+        Returns:
+            bool: True if stop requested, False otherwise.
+        """
+        if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+            if self.app_hooks.stop_requested():
+                if logger_stop_message:
+                    logger.info(logger_stop_message)
+                return True
+        return False
+    
+    def _add_time_reference(self, gedcom_date) -> None:
+        """
+        Add a time reference via app hooks if available. (Private method)
+
+        Args:
+            gedcom_date (GedcomDate): GEDCOM date object.
+        """
+        if self.app_hooks and callable(getattr(self.app_hooks, "add_time_reference", None)):
+            self.app_hooks.add_time_reference(gedcom_date)
+
     def _check_fix_gedcom(self, input_path: Path) -> Path:
         """Fixes common issues in GEDCOM records."""
-        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step("Checking and fixing GEDCOM file ...", plus_step=0)
+        self._report_step("Checking and fixing GEDCOM file ...", plus_step=0)
 
         if input_path is None:
             return None
@@ -106,8 +146,7 @@ class GedcomParser:
     
     def _check_convert_legacy_gedcom(self, input_path: Path) -> Path:
         """Converts Legacy GEDCOM to GEDCOM 5.5 if needed."""
-        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step("Check and convert if Legacy GEDCOM ...", plus_step=0)
+        self._report_step("Check and convert if Legacy GEDCOM ...", plus_step=0)
 
         if input_path is None:
             return None
@@ -168,8 +207,8 @@ class GedcomParser:
                 date = date,
                 record=record,
                 what=record.tag)
-            if date and self.app_hooks and callable(getattr(self.app_hooks, "add_time_reference", None)):
-                self.app_hooks.add_time_reference(event.date)
+            if date:
+                self._add_time_reference(event.date)
         return event
 
     def _get_event_list(self, record: Record, tag: Union[str, List[str]]) -> List[LifeEvent]:
@@ -311,16 +350,13 @@ class GedcomParser:
             Dict[str, Person]: Dictionary of Person objects.
         """
         people = {}
-        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step(info="Loading People", target=self.num_people+self.num_families, plus_step=0)
+        self._report_step(info="Loading People", target=self.num_people+self.num_families, plus_step=0)
         for idx, record in enumerate(records0('INDI')):
             people[record.xref_id] = self.__create_person(record)
-            if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
-                if self.app_hooks.stop_requested():
-                    break
+            if self._stop_requested():
+                break
             if idx % 100 == 0:
-                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step(info=f"Loaded {people[record.xref_id].name}", plus_step=100)
+                self._report_step(info=f"Loaded {people[record.xref_id].name}", plus_step=100)
         return people
 
     def _add_marriages(self, people: Dict[str, Person], records) -> Dict[str, Person]:
@@ -376,25 +412,11 @@ class GedcomParser:
                             if record.sub_tag('WIFE') and partner_person.xref_id == record.sub_tag('WIFE').xref_id:
                                 people[child.xref_id].mother = partner_person.xref_id
                                 partner_person.children.append(child.xref_id)
-            if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
-                if self.app_hooks.stop_requested():
-                    break
+            if self._stop_requested():
+                break
             if idx % 100 == 0:
-                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step(plus_step=100)
+                self._report_step(plus_step=100)
         return people
-
-    def parse_people(self) -> Dict[str, Person]:
-        """
-        Parses people from the GEDCOM file.
-
-        Returns:
-            Dict[str, Person]: Dictionary of Person objects.
-        """
-        if self._cached_people:
-            return self._cached_people
-        self._load_people_and_places()
-        return self._cached_people if self._cached_people else {}
 
     def _fast_count(self) -> None:
         def _count_gedcom_records( path, encoding):
@@ -432,8 +454,7 @@ class GedcomParser:
         Loads people and places from the GEDCOM file.
         """
 
-        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-            self.app_hooks.report_step("Counting people", target=0)
+        self._report_step("Counting people", target=0)
         self.num_people = 0
         self.num_families = 0
         self._fast_count()
@@ -441,15 +462,12 @@ class GedcomParser:
             # Single pass: build people and then addresses
             with GedcomReader(str(self.gedcom_file)) as g:
                 records = g.records0
-                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step("Loading people from GED", target=self.num_people+ self.num_families,reset_counter=True, plus_step=0)
-                self._cached_people = self._create_people(records)
-                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step("Linking families from GED", target=self.num_people + self.num_families, plus_step=0)
-                self._cached_people = self._add_marriages(self._cached_people, records)
+                self._report_step("Loading people from GED", target=self.num_people+ self.num_families,reset_counter=True, plus_step=0)
+                self.people = self._create_people(records)
+                self._report_step("Linking families from GED", target=self.num_people + self.num_families, plus_step=0)
+                self.people = self._add_marriages(self.people, records)
 
-                if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                    self.app_hooks.report_step("Loading addresses from GED", target=self.num_people + self.num_families, reset_counter=True, plus_step=0)
+                self._report_step("Loading addresses from GED", target=self.num_people + self.num_families, reset_counter=True, plus_step=0)
 
         except Exception as e:
             logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")
