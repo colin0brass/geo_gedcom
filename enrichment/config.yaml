@@ -1,0 +1,39 @@
+# Enrichment Configuration
+# This file contains default settings for the genealogical data enrichment pipeline
+
+# General Settings
+enabled: true
+max_iterations: 3
+
+# Age Constraints - Person Lifespan
+death_age_min: 0
+death_age_max: 122  # Based on verified record: Jeanne Calment
+
+# Age Constraints - Parents
+mother_age_min: 11
+mother_age_max: 66
+father_age_min: 12
+father_age_max: 93
+
+# Inference Windows
+burial_to_death_max_days: 14
+baptism_to_birth_max_days: 365
+
+# Rule Confidence Levels
+# Confidence values (0.0 to 1.0) for inferred data from each rule
+rule_confidence:
+  death_from_burial: 0.6
+  implausible_age: 0.7
+
+# Rule Toggles
+# Enable or disable specific enrichment rules
+rules_enabled:
+  death_from_burial: true
+  parent_child_bounds: true
+  implausible_age: true
+
+# Update enhanced person event dates based on inferred data
+rules_infer_event_date_updates:
+  death_from_burial: true
+  implausible_age: true
+  parent_child_bounds: true

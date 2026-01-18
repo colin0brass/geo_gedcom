@@ -21,6 +21,8 @@ from typing import Dict, List, Optional, Union, Tuple
 from .gedcom_parser import GedcomParser
 from .person import Person
 from .app_hooks import AppHooks
+from .enrichment import Enrichment
+from .statistics import Statistics
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +78,16 @@ class Gedcom:
         people (Dict[str, Person]): Dictionary of all Person objects indexed by xref_id.
         address_list (List[str]): List of all unique place names found in the GEDCOM file.
         app_hooks (Optional[AppHooks]): Optional application hooks for custom processing.
+        enrichment (Enrichment): Enrichment instance for processing genealogical data.
+        statistics (Statistics): Statistics instance for collecting genealogical statistics.
     """
     __slots__ = [
         'gedcom_parser',
         'people',
         'address_list',
-        'app_hooks'
+        'app_hooks',
+        'enrichment',
+        'statistics',
     ]
     def __init__(self, gedcom_file: Path, only_use_photo_tags: bool = False, app_hooks: Optional['AppHooks'] = None) -> None:
         """Initialize the Gedcom handler and load people and places from the GEDCOM file."""
@@ -92,6 +98,13 @@ class Gedcom:
             app_hooks=self.app_hooks
         )
         self.people = self.gedcom_parser.people
+
+        self.enrichment = Enrichment(people=self.people)
+        enrichment_num_issues: int = len(self.enrichment.issues)
+        if enrichment_num_issues > 0:
+            logger.info(f"Enrichment completed with {enrichment_num_issues} issues found")
+
+        self.statistics = Statistics(gedcom_parser=self.gedcom_parser)
 
     def close(self):
         """
@@ -107,7 +120,7 @@ class Gedcom:
             List[str]: List of unique place names.
         """
         self.address_list = self.gedcom_parser.get_full_address_list()
-
+    
     def filter_generations(
         self,
         starting_person_id: str,

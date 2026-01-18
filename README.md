@@ -34,21 +34,33 @@ pip install ged4py rapidfuzz unidecode pycountry pycountry-convert bpemb pyyaml
 - **Filtering:** Supports advanced ancestor/descendant filtering by generation.
 - **Photo Management:** Handles photo file extraction and management from GEDCOM records.
 - **Geocoding Integration:** Integrates with geolocation utilities for mapping places and events.
+- **Data Enrichment:** Infers missing events, detects data quality issues, and applies domain knowledge (see `enrichment/` module).
+- **Statistics Collection:** Aggregates demographic, event, and geographic statistics from genealogical datasets (see `statistics/` module).
 - **Export Utilities:** Allows exporting filtered data and associated photos to new GEDCOM files.
 - **Memory Optimization:** Uses `__slots__` in key classes for reduced memory usage.
 - **Type Hints & Docstrings:** All major classes and functions are documented and typed for clarity and maintainability.
 - **Comprehensive Testing:** Extensive pytest-based test suite for all core modules and models.
 
 ## Main Classes & Modules
+
+### Core Parsing & Data Models
 - `Gedcom`: High-level handler for people and places.
 - `GedcomParser`: Utilities for parsing and exporting GEDCOM data.
 - `Person`, `LifeEvent`, `Marriage`: Data models for individuals, life events, and marriages.
 - `LifeEventSet`: Structured, type-annotated, and robust container for organizing and retrieving life events by type, supporting sorting and flexible event handling.
+
+### Geocoding & Location
 - `Location`, `LatLon`: Geocoding and location utilities.
 - `FuzzyAddressBook`: Place/address management.
-- `GedcomDate`: Robust date parsing and normalization.
 - `GeoCache`, `Geocode`: Geocoding cache and lookup utilities.
 - `geo_config`: Country/continent configuration and mapping.
+
+### Data Processing
+- `GedcomDate`: Robust date parsing and normalization.
+- **`enrichment/` module**: Infer missing events, detect data quality issues, apply domain knowledge
+  - See [enrichment/README.md](enrichment/README.md) for details
+- **`statistics/` module**: Collect aggregate statistics from genealogical data
+  - See [statistics/README.md](statistics/README.md) for details
 
 ## Usage Example
 ```python
@@ -80,34 +92,36 @@ geo_gedcom/
 ├── geo_config.py
 ├── geocache.py
 ├── geocode.py
-├── geolocated_gedcom.py
-├── lat_lon.py
-├── life_event.py
-├── life_event_set.py
-├── location.py
-├── marriage.py
-├── partner.py
-├── person.py
-├── requirements.txt
-├── README.md
+├── enrichment/           # Data enrichment module
+│   ├── __init__.py
+│   ├── README.md
+│   ├── enrichment.py
+│   ├── pipeline.py
+│   ├── config.py
+│   ├── config.yaml
+│   ├── model.py
+│   ├── date_utils.py
+│   ├── rules/
+│   └── tests/
+├── statistics/           # Statistics collection module
+│   ├── __init__.py
+│   ├── README.md
+│   ├── statistics.py
+│   ├── pipeline.py
+│   ├── model.py
+│   ├── base.py
+│   ├── collectors/
+│   └── tests/
 ├── samples/
 │   ├── bronte.ged
-│   ├── bronte_alt.csv
-│   ├── bronte_cache.csv
 │   ├── pres2020.ged
-│   ├── pres2020_alt.csv
-│   ├── pres2020_cache.csv
 │   ├── royal92.ged
-│   ├── royal92_alt.csv
-│   ├── royal92_cache.csv
-│   ├── shakespeare.ged
-│   ├── shakespeare_alt.csv
-│   └── shakespeare_cache.csv
-├── tests/
-│   ├── test_addressbook.py
-│   ├── test_gedcom_date.py
-│   ├── test_gedcom_parser.py
-│   ├── test_geo_config.py
+│   └── shakespeare.ged
+└── tests/
+    ├── test_addressbook.py
+    ├── test_gedcom_date.py
+    ├── test_gedcom_parser.py
+    └── ...g.py
 │   ├── test_geo_gedcom_imports.py
 │   ├── test_geocache.py
 │   ├── test_geocode.py

@@ -86,7 +86,7 @@ class Person:
         self.sex : Optional[str] = None
         self.title : Optional[str] = None
 
-        self.event_type_list : List[str] = ['birth', 'death', 'marriage', 'baptism', 'residence', 'military', 'arrival', 'departure']
+        self.event_type_list : List[str] = ['birth', 'death', 'burial', 'marriage', 'baptism', 'residence', 'military', 'arrival', 'departure']
         self.allow_new_event_types : bool = False
         self.__life_event_set : LifeEventSet = LifeEventSet(event_types=self.event_type_list, allow_new_event_types=self.allow_new_event_types)
 
@@ -112,7 +112,7 @@ class Person:
 
         Args:
             life_events (LifeEvent or List[LifeEvent]): One or more life events to add.
-            event_type (str): Type of event ('birth', 'marriage', 'death', 'baptism', 'residence', 'military', 'arrival', 'departure').
+            event_type (str): Type of event ('birth', 'death', 'burial', 'marriage', 'baptism', 'residence', 'military', 'arrival', 'departure').
         """
         event_type = event_type.lower()
         self.__life_event_set.add_events(event_type, life_events)
@@ -123,7 +123,7 @@ class Person:
 
         Args:
             life_event (LifeEvent): A life event to add.
-            event_type (str): Type of event ('birth', 'death', 'baptism', 'residence', 'military', 'arrival', 'departure').
+            event_type (str): Type of event ('birth', 'death', 'burial', 'marriage', 'baptism', 'residence', 'military', 'arrival', 'departure').
         """
         if not isinstance(life_event, (LifeEvent, Marriage, type(None))):
             logger.warning(f"Invalid life event provided: {life_event}")
@@ -135,7 +135,7 @@ class Person:
         Returns a list of life events for the specified event type.
 
         Args:
-            event_type (str): Type of event ('birth', 'marriage', 'death', 'baptism', 'residence', 'military', 'arrival', 'departure').
+            event_type (str): Type of event ('birth', 'death', 'burial', 'marriage', 'baptism', 'residence', 'military', 'arrival', 'departure').
         Returns:
             List[LifeEvent]: List of life events of the specified type.
         """
@@ -147,7 +147,7 @@ class Person:
         Returns the first life event for the specified event type.
 
         Args:
-            event_type (str): Type of event ('birth', 'death', 'baptism', 'residence', 'military', 'arrival', 'departure').
+            event_type (str): Type of event ('birth', 'death', 'burial', 'marriage', 'baptism', 'residence', 'military', 'arrival', 'departure').
         Returns:
             Optional[LifeEvent]: The first life event of the specified type, or None if not found.
         """
