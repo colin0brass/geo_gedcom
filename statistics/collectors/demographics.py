@@ -7,7 +7,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date as _date
 import logging
-from typing import Any, Iterable
+from typing import Any, Iterable, List, Optional
 
 from geo_gedcom.statistics.base import StatisticsCollector, register_collector
 from geo_gedcom.statistics.model import Stats
