@@ -26,8 +26,9 @@ Tests collectors that analyze family structures and relationships:
 - **ChildrenCollector**: Family size, children statistics, and sibling relationships
 - **RelationshipStatusCollector**: Marital status categorization and demographics
 - **DivorceCollector**: Divorce patterns, ages, and marriage durations before divorce
+- **RelationshipPathCollector**: Relationship analysis from focus person perspective using graph traversal
 
-**Tests:** 17 tests covering family relationships, marital status, and divorce ✅ All passing
+**Tests:** 22 tests covering family relationships, marital status, divorce, and relationship paths ✅ All passing
 
 ### 4. test_collectors.py
 Tests for existing base/core collectors:
@@ -86,17 +87,17 @@ pytest gedcom-to-map/geo_gedcom/statistics/tests/ --cov=geo_gedcom.statistics --
 
 ## Test Coverage
 
-### Collector Statistics3
+### Collector Statistics
 - **Demographic:** Gender, Names, Ages, Births (4 collectors)
 - **Core/Base:** Demographics, EventCompleteness, Geographic (3 collectors)
 - **Temporal:** Longevity, Timeline (2 collectors)
-- **Family:** Marriage, Children, RelationshipStatus, Divorce (4 collectors)
+- **Family:** Marriage, Children, RelationshipStatus, Divorce, RelationshipPath (5 collectors)
 
 ### Test Statistics
-**Total Tests:** 59 tests across all test files
+**Total Tests:** 64 tests across all test files
 
 **By Category:**
-- ✅ **test_family_collectors.py:** 17 tests - All passing
+- ✅ **test_family_collectors.py:** 22 tests - All passing
 - ✅ **test_temporal_collectors.py:** 10 tests - All passing
 - ✅ **test_demographic_collectors.py:** 5 tests - All passing
 - ✅ **test_collectors.py:** 5 tests - All passing
@@ -106,12 +107,19 @@ pytest gedcom-to-map/geo_gedcom/statistics/tests/ --cov=geo_gedcom.statistics --
 
 **Status Summary:**
 - ✅ **All 59 tests passing (100%)**
-- ✅ Family collectors: 17/17100%)**
-- ✅ Family collectors: 12/12 passing
-- ✅ Demographic collectors: 5/5 passing
-- ✅ Temporal collectors: 10/10 passing
-- ✅ Base/Core collectors: 5/5 passing
-- ✅ Infrastructure tests: 22/22 passing (model, pipeline, statistics)
+- ✅ **test_temporal_collectors.py:** 10 tests - All passing
+- ✅ **test_demographic_collectors.py:** 5 tests - All passing
+- ✅ **test_collectors.py:** 5 tests - All passing
+- ✅ **test_statistics.py:** 8 tests - All passing
+- ✅ **test_pipeline.py:** 7 tests - All passing
+- ✅ **test_model.py:** 7 tests - All passing
+
+**By Functionality:**
+- ✅ Family collectors: 22/22 (100%)
+- ✅ Demographic collectors: 5/5 (100%)
+- ✅ Temporal collectors: 10/10 (100%)
+- ✅ Base/Core collectors: 5/5 (100%)
+- ✅ Infrastructure tests: 22/22 (100%) - model, pipeline, statistics
 
 ## Naming Convention
 

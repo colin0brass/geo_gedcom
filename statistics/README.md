@@ -32,7 +32,8 @@ from geo_gedcom.statistics.collectors import (
     MarriageCollector,
     ChildrenCollector,
     RelationshipStatusCollector,
-    DivorceCollector
+    DivorceCollector,
+    RelationshipPathCollector
 )
 
 # Create pipeline with built-in collectors
@@ -87,7 +88,7 @@ pipeline = StatisticsPipeline(config=config)
 
 ## Built-in Collectors
 
-The statistics module includes 13 built-in collectors organized into 4 categories:
+The statistics module includes 14 built-in collectors organized into 4 categories:
 
 ### Core/Base Collectors (3)
 
@@ -285,6 +286,19 @@ Analyzes divorce patterns and statistics.
 - Longest/shortest marriages ending in divorce
 - Divorce trends over time (decades, centuries)
 - People who divorced the most
+
+#### RelationshipPathCollector
+Analyzes family relationships from a focus person's perspective using graph traversal.
+
+**Statistics collected:**
+- Focus person (automatically selected or manually specified)
+- Total counts by relationship type (ancestors, descendants, blood relatives, in-laws)
+- Distribution of people by steps away from focus person
+- Distribution by generation offset (positive for ancestors, negative for descendants)
+- Farthest ancestor/descendant (by steps and generation)
+- Lists of specific relationship types (parents, siblings, cousins, etc.)
+- Average steps to all relatives
+- Most distant relative by steps
 
 ## Creating Custom Collectors
 

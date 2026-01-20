@@ -6,6 +6,7 @@ Tests collectors that analyze family structures and relationships:
 - ChildrenCollector: Family size, children statistics, and sibling relationships
 - RelationshipStatusCollector: Marital status categorization and demographics
 - DivorceCollector: Divorce patterns, ages, and marriage durations before divorce
+- RelationshipPathCollector: Relationship analysis from focus person's perspective
 """
 import pytest
 
@@ -13,6 +14,7 @@ from geo_gedcom.statistics.collectors.marriage import MarriageCollector
 from geo_gedcom.statistics.collectors.children import ChildrenCollector
 from geo_gedcom.statistics.collectors.relationship_status import RelationshipStatusCollector
 from geo_gedcom.statistics.collectors.divorce import DivorceCollector
+from geo_gedcom.statistics.collectors.relationship_path import RelationshipPathCollector
 from geo_gedcom.statistics.model import Stats
 
 
@@ -478,6 +480,139 @@ def test_divorce_collector_no_divorces():
     
     assert divorce_stats['total_divorces'] == 0
     assert divorce_stats['people_with_divorces'] == 0
+
+
+def test_relationship_path_collector_basic():
+    """Test RelationshipPathCollector with basic family."""
+    # Create a simple family: grandparents -> parents -> child
+    grandpa = MockPerson('I1', 1920, 2000, 'M', 'Grandpa')
+    grandma = MockPerson('I2', 1922, 2005, 'F', 'Grandma')
+    father = MockPerson('I3', 1950, None, 'M', 'Father')
+    mother = MockPerson('I4', 1952, None, 'F', 'Mother')
+    child = MockPerson('I5', 1980, None, 'M', 'Child')
+    
+    # Set up family relationships
+    father.father = 'I1'
+    father.mother = 'I2'
+    father.children = [child]
+    mother.children = [child]
+    child.father = 'I3'
+    child.mother = 'I4'
+    
+    father.add_marriage(mother, 1975)
+    
+    people = [grandpa, grandma, father, mother, child]
+    
+    # Use child as focus person
+    collector = RelationshipPathCollector(focus_person_id='I5')
+    stats = collector.collect(people, Stats())
+    
+    rel_stats = stats.get_category('relationship_path')
+    
+    assert rel_stats['focus_person_id'] == 'I5'
+    assert rel_stats['focus_person_name'] == 'Child'
+    assert rel_stats['total_people_analyzed'] == 5
+    assert rel_stats['direct_ancestors'] >= 2  # At least parents
+    assert 'steps_away_distribution' in rel_stats
+
+
+def test_relationship_path_collector_generations():
+    """Test generation counting."""
+    # Create multi-generation family
+    grandpa = MockPerson('I1', 1920, 2000, 'M', 'Grandpa')
+    father = MockPerson('I2', 1950, None, 'M', 'Father')
+    child = MockPerson('I3', 1980, None, 'M', 'Child')
+    grandchild = MockPerson('I4', 2010, None, 'F', 'Grandchild')
+    
+    father.father = 'I1'
+    father.children = [child]
+    child.father = 'I2'
+    child.children = [grandchild]
+    grandchild.father = 'I3'
+    
+    people = [grandpa, father, child, grandchild]
+    
+    # Use middle generation as focus
+    collector = RelationshipPathCollector(focus_person_id='I3')
+    stats = collector.collect(people, Stats())
+    
+    rel_stats = stats.get_category('relationship_path')
+    
+    assert rel_stats['direct_ancestors'] >= 1  # Father and/or grandpa
+    assert rel_stats['direct_descendants'] >= 1  # Grandchild
+    assert 'generation_distribution' in rel_stats
+    assert rel_stats['generation_span'] >= 2  # At least 3 generations
+
+
+def test_relationship_path_collector_siblings():
+    """Test sibling relationships."""
+    parent = MockPerson('I1', 1950, None, 'M', 'Parent')
+    child1 = MockPerson('I2', 1980, None, 'F', 'Child 1')
+    child2 = MockPerson('I3', 1982, None, 'M', 'Child 2')
+    child3 = MockPerson('I4', 1985, None, 'F', 'Child 3')
+    
+    child1.father = 'I1'
+    child2.father = 'I1'
+    child3.father = 'I1'
+    parent.children = [child1, child2, child3]
+    
+    people = [parent, child1, child2, child3]
+    
+    # Use child1 as focus
+    collector = RelationshipPathCollector(focus_person_id='I2')
+    stats = collector.collect(people, Stats())
+    
+    rel_stats = stats.get_category('relationship_path')
+    
+    assert rel_stats['direct_ancestors'] >= 1  # Parent
+    # Siblings should be in same generation
+    gen_dist = rel_stats.get('generation_distribution', {})
+    assert 'Same generation' in gen_dist
+
+
+def test_relationship_path_collector_marriage():
+    """Test relatives by marriage."""
+    person = MockPerson('I1', 1980, None, 'M', 'Person')
+    spouse = MockPerson('I2', 1982, None, 'F', 'Spouse')
+    spouse_parent = MockPerson('I3', 1950, None, 'M', 'In-law')
+    
+    spouse.father = 'I3'
+    spouse_parent.children = [spouse]
+    person.add_marriage(spouse, 2005)
+    
+    people = [person, spouse, spouse_parent]
+    
+    # Use person as focus
+    collector = RelationshipPathCollector(focus_person_id='I1')
+    stats = collector.collect(people, Stats())
+    
+    rel_stats = stats.get_category('relationship_path')
+    
+    # Spouse should be found
+    assert rel_stats['relatives_by_marriage'] >= 1
+    # Spouse's parent is also relative by marriage
+    assert rel_stats['total_relationships_found'] >= 2
+
+
+def test_relationship_path_collector_no_focus():
+    """Test with no specified focus person (auto-select)."""
+    person1 = MockPerson('I1', 1980, None, 'M', 'Person 1')
+    person2 = MockPerson('I2', 1982, None, 'F', 'Person 2')
+    
+    person1.add_marriage(person2, 2005)
+    
+    people = [person1, person2]
+    
+    # Don't specify focus person
+    collector = RelationshipPathCollector()
+    stats = collector.collect(people, Stats())
+    
+    rel_stats = stats.get_category('relationship_path')
+    
+    # Should auto-select a focus person
+    assert 'focus_person_id' in rel_stats
+    assert 'focus_person_name' in rel_stats
+    assert rel_stats['total_people_analyzed'] == 2
 
 
 if __name__ == '__main__':

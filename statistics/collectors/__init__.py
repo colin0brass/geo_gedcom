@@ -17,6 +17,7 @@ from geo_gedcom.statistics.collectors.marriage import MarriageCollector
 from geo_gedcom.statistics.collectors.children import ChildrenCollector
 from geo_gedcom.statistics.collectors.relationship_status import RelationshipStatusCollector
 from geo_gedcom.statistics.collectors.divorce import DivorceCollector
+from geo_gedcom.statistics.collectors.relationship_path import RelationshipPathCollector
 
 __all__ = [
     'DemographicsCollector',
@@ -32,4 +33,5 @@ __all__ = [
     'ChildrenCollector',
     'RelationshipStatusCollector',
     'DivorceCollector',
+    'RelationshipPathCollector',
 ]
