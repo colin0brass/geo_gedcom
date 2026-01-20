@@ -22,7 +22,17 @@ from geo_gedcom.statistics import StatisticsPipeline
 from geo_gedcom.statistics.collectors import (
     DemographicsCollector,
     EventCompletenessCollector,
-    GeographicCollector
+    GeographicCollector,
+    GenderCollector,
+    NamesCollector,
+    AgesCollector,
+    BirthsCollector,
+    LongevityCollector,
+    TimelineCollector,
+    MarriageCollector,
+    ChildrenCollector,
+    RelationshipStatusCollector,
+    DivorceCollector
 )
 
 # Create pipeline with built-in collectors
@@ -77,7 +87,11 @@ pipeline = StatisticsPipeline(config=config)
 
 ## Built-in Collectors
 
-### DemographicsCollector
+The statistics module includes 13 built-in collectors organized into 4 categories:
+
+### Core/Base Collectors (3)
+
+#### DemographicsCollector
 
 Collects demographic statistics about the dataset.
 
@@ -154,6 +168,123 @@ print(f"Unique places: {geo['unique_places']}")
 print(f"Top birth places: {geo['most_common_birth_places']}")
 print(f"Countries: {geo['countries']}")
 ```
+
+### Demographic Collectors (4)
+
+#### GenderCollector
+Analyzes gender distribution and gender-specific statistics.
+
+**Statistics collected:**
+- Gender counts (male, female, unknown)
+- Gender percentages
+- Living vs deceased by gender
+- Most common names by gender
+
+#### NamesCollector
+Analyzes name patterns and frequencies.
+
+**Statistics collected:**
+- Most common first names
+- Most common middle names
+- Most common surnames
+- Unique name counts
+- People with middle names
+
+#### AgesCollector
+Analyzes age distribution and lifespan statistics.
+
+**Statistics collected:**
+- Living people age distribution
+- Oldest/youngest living people
+- Age at death distribution
+- Deceased lifespan statistics
+- Age ranges and categories
+
+#### BirthsCollector
+Analyzes birth patterns and temporal trends.
+
+**Statistics collected:**
+- Birth months distribution
+- Birth seasons
+- Zodiac sign distribution
+- Birth decades and centuries
+- Most/least common birth months and zodiac signs
+
+### Temporal Collectors (2)
+
+#### LongevityCollector
+Analyzes life expectancy and mortality patterns.
+
+**Statistics collected:**
+- Life expectancy by birth decade
+- Life expectancy by birth century
+- Life expectancy by gender over time
+- Infant mortality rate
+- Child mortality rate
+- Survival rates by time period
+
+#### TimelineCollector
+Analyzes event density and temporal coverage.
+
+**Statistics collected:**
+- Total events with dates
+- Event density by decade
+- Peak periods (decade, year)
+- Temporal coverage span
+- Data completeness by decade
+- Events by type
+
+### Family Collectors (4)
+
+#### MarriageCollector
+Analyzes marriage patterns and statistics.
+
+**Statistics collected:**
+- Number of marriages per person
+- Marriage age distribution (by gender)
+- Marriage duration statistics
+- Age differences between spouses
+- Marriage trends over time (decades, centuries)
+- Oldest/youngest when married
+- Longest/shortest marriages
+
+#### ChildrenCollector
+Analyzes family size and children statistics.
+
+**Statistics collected:**
+- Children per family
+- Children per person (by gender)
+- Family with most children
+- People with most children
+- Age when having children
+- Oldest/youngest when had a child
+- Sibling age gaps
+- Average children per family
+
+#### RelationshipStatusCollector
+Categorizes people by marital status.
+
+**Statistics collected:**
+- Never married count
+- Currently married count
+- Widowed count
+- Status by gender
+- Status by age groups
+- Percentage breakdowns
+
+#### DivorceCollector
+Analyzes divorce patterns and statistics.
+
+**Statistics collected:**
+- Total divorces
+- People with divorces
+- Divorce rate percentage
+- Age at divorce (by gender)
+- Oldest/youngest when divorced
+- Marriage duration before divorce
+- Longest/shortest marriages ending in divorce
+- Divorce trends over time (decades, centuries)
+- People who divorced the most
 
 ## Creating Custom Collectors
 

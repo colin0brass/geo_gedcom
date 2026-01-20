@@ -25,8 +25,9 @@ Tests collectors that analyze family structures and relationships:
 - **MarriageCollector**: Marriage patterns, ages, durations, and age differences
 - **ChildrenCollector**: Family size, children statistics, and sibling relationships
 - **RelationshipStatusCollector**: Marital status categorization and demographics
+- **DivorceCollector**: Divorce patterns, ages, and marriage durations before divorce
 
-**Tests:** 12 tests covering family relationships and marital status ✅ All passing
+**Tests:** 17 tests covering family relationships, marital status, and divorce ✅ All passing
 
 ### 4. test_collectors.py
 Tests for existing base/core collectors:
@@ -85,18 +86,17 @@ pytest gedcom-to-map/geo_gedcom/statistics/tests/ --cov=geo_gedcom.statistics --
 
 ## Test Coverage
 
-### Collector Statistics
-**Total Collectors Implemented:** 12
+### Collector Statistics3
 - **Demographic:** Gender, Names, Ages, Births (4 collectors)
 - **Core/Base:** Demographics, EventCompleteness, Geographic (3 collectors)
 - **Temporal:** Longevity, Timeline (2 collectors)
-- **Family:** Marriage, Children, RelationshipStatus (3 collectors)
+- **Family:** Marriage, Children, RelationshipStatus, Divorce (4 collectors)
 
 ### Test Statistics
-**Total Tests:** 54 tests across all test files
+**Total Tests:** 59 tests across all test files
 
 **By Category:**
-- ✅ **test_family_collectors.py:** 12 tests - All passing
+- ✅ **test_family_collectors.py:** 17 tests - All passing
 - ✅ **test_temporal_collectors.py:** 10 tests - All passing
 - ✅ **test_demographic_collectors.py:** 5 tests - All passing
 - ✅ **test_collectors.py:** 5 tests - All passing
@@ -105,7 +105,8 @@ pytest gedcom-to-map/geo_gedcom/statistics/tests/ --cov=geo_gedcom.statistics --
 - ✅ **test_statistics.py:** 8 tests - All passing
 
 **Status Summary:**
-- ✅ **All 54 tests passing (100%)**
+- ✅ **All 59 tests passing (100%)**
+- ✅ Family collectors: 17/17100%)**
 - ✅ Family collectors: 12/12 passing
 - ✅ Demographic collectors: 5/5 passing
 - ✅ Temporal collectors: 10/10 passing

@@ -5,12 +5,14 @@ Tests collectors that analyze family structures and relationships:
 - MarriageCollector: Marriage patterns, ages, durations, and age differences
 - ChildrenCollector: Family size, children statistics, and sibling relationships
 - RelationshipStatusCollector: Marital status categorization and demographics
+- DivorceCollector: Divorce patterns, ages, and marriage durations before divorce
 """
 import pytest
 
 from geo_gedcom.statistics.collectors.marriage import MarriageCollector
 from geo_gedcom.statistics.collectors.children import ChildrenCollector
 from geo_gedcom.statistics.collectors.relationship_status import RelationshipStatusCollector
+from geo_gedcom.statistics.collectors.divorce import DivorceCollector
 from geo_gedcom.statistics.model import Stats
 
 
@@ -29,14 +31,21 @@ class MockEvent:
 
 class MockMarriage:
     """Mock Marriage object."""
-    def __init__(self, people_list, event_year=None):
+    def __init__(self, people_list, event_year=None, divorce_year=None):
         self.people_list = people_list
         self.event = MockEvent(event_year) if event_year is not None else None
+        self.divorce = MockEvent(divorce_year) if divorce_year is not None else None
     
     def partner(self, person):
         """Return the other partner."""
         partners = [p for p in self.people_list if p != person]
         return partners[0] if partners else None
+    
+    def get_event(self, event_type):
+        """Get event by type."""
+        if event_type == 'divorce':
+            return self.divorce
+        return None
 
 
 class MockPerson:
@@ -52,9 +61,9 @@ class MockPerson:
         self.mother = None
         self._marriages = []
     
-    def add_marriage(self, partner, marriage_year=None):
+    def add_marriage(self, partner, marriage_year=None, divorce_year=None):
         """Add a marriage."""
-        marriage = MockMarriage([self, partner], marriage_year)
+        marriage = MockMarriage([self, partner], marriage_year, divorce_year)
         self._marriages.append(marriage)
         partner._marriages.append(marriage)
     
@@ -377,6 +386,98 @@ def test_integration_all_family_collectors():
     if combined_stats.get_value('children', 'total_families'):
         assert combined_stats.get_value('children', 'total_families') == 1
     assert combined_stats.get_value('relationship_status', 'ever_married') == 2
+
+
+def test_divorce_collector_basic():
+    """Test DivorceCollector with basic data."""
+    husband = MockPerson('I1', 1950, 2020, 'M', 'John Smith')
+    wife = MockPerson('I2', 1952, 2022, 'F', 'Jane Smith')
+    husband.add_marriage(wife, 1975, 1985)  # Married 1975, divorced 1985
+    
+    people = [husband, wife]
+    
+    collector = DivorceCollector()
+    stats = collector.collect(people, Stats())
+    
+    divorce_stats = stats.get_category('divorce')
+    
+    assert divorce_stats['total_divorces'] == 1
+    assert divorce_stats['people_with_divorces'] == 2
+    assert divorce_stats['total_people'] == 2
+
+
+def test_divorce_collector_ages():
+    """Test divorce age calculations."""
+    husband = MockPerson('I1', 1950, None, 'M', 'John')
+    wife = MockPerson('I2', 1955, None, 'F', 'Jane')
+    husband.add_marriage(wife, 1975, 1985)  # He was 35, she was 30 at divorce
+    
+    collector = DivorceCollector()
+    stats = collector.collect([husband, wife], Stats())
+    
+    divorce_stats = stats.get_category('divorce')
+    
+    assert 'average_age_at_divorce' in divorce_stats
+    assert 'youngest_divorce_age' in divorce_stats
+    assert 'oldest_divorce_age' in divorce_stats
+    assert divorce_stats['youngest_divorce_age'] == 30
+    assert divorce_stats['oldest_divorce_age'] == 35
+
+
+def test_divorce_collector_duration():
+    """Test marriage duration before divorce."""
+    husband = MockPerson('I1', 1950, None, 'M', 'John')
+    wife = MockPerson('I2', 1952, None, 'F', 'Jane')
+    husband.add_marriage(wife, 1975, 1985)  # 10 year marriage
+    
+    collector = DivorceCollector()
+    stats = collector.collect([husband, wife], Stats())
+    
+    divorce_stats = stats.get_category('divorce')
+    
+    assert 'marriages_ending_in_divorce' in divorce_stats
+    assert divorce_stats['marriages_ending_in_divorce'] == 1
+    assert 'average_marriage_duration_before_divorce' in divorce_stats
+    assert divorce_stats['average_marriage_duration_before_divorce'] == 10.0
+    assert divorce_stats['longest_marriage_ending_in_divorce'] == 10
+    assert divorce_stats['shortest_marriage_ending_in_divorce'] == 10
+
+
+def test_divorce_collector_multiple_divorces():
+    """Test person with multiple divorces."""
+    person1 = MockPerson('I1', 1950, None, 'M', 'John')
+    spouse1 = MockPerson('I2', 1952, None, 'F', 'Jane')
+    spouse2 = MockPerson('I3', 1955, None, 'F', 'Mary')
+    
+    person1.add_marriage(spouse1, 1975, 1985)  # First marriage, divorced
+    person1.add_marriage(spouse2, 1990, 2000)  # Second marriage, divorced
+    
+    people = [person1, spouse1, spouse2]
+    
+    collector = DivorceCollector()
+    stats = collector.collect(people, Stats())
+    
+    divorce_stats = stats.get_category('divorce')
+    
+    assert divorce_stats['total_divorces'] == 2
+    assert divorce_stats['people_with_divorces'] == 3
+    assert 'divorced_the_most' in divorce_stats
+    assert divorce_stats['divorced_the_most']['count'] == 2
+
+
+def test_divorce_collector_no_divorces():
+    """Test with people who never divorced."""
+    husband = MockPerson('I1', 1950, 2020, 'M', 'John')
+    wife = MockPerson('I2', 1952, 2022, 'F', 'Jane')
+    husband.add_marriage(wife, 1975)  # Married, no divorce
+    
+    collector = DivorceCollector()
+    stats = collector.collect([husband, wife], Stats())
+    
+    divorce_stats = stats.get_category('divorce')
+    
+    assert divorce_stats['total_divorces'] == 0
+    assert divorce_stats['people_with_divorces'] == 0
 
 
 if __name__ == '__main__':
