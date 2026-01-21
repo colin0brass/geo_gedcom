@@ -108,14 +108,42 @@ class EventCompletenessCollector(StatisticsCollector):
         Get an event from a person.
         
         Tries EnrichedPerson.get_explicit_event() first, then Person.get_event().
+        For marriage events, retrieves from partnerships/families.
         
         Args:
             person: Person or EnrichedPerson object
-            event_type: Event type to retrieve (e.g., 'birth', 'death')
+            event_type: Event type to retrieve (e.g., 'birth', 'death', 'marriage')
             
         Returns:
             Event object if found, None otherwise
         """
+        # Marriage events need special handling
+        if event_type == 'marriage':
+            # Try to get marriage events from partnerships
+            if hasattr(person, 'get_events'):
+                marriages = person.get_events('marriage')
+                if marriages:
+                    marriage_list = marriages if isinstance(marriages, list) else [marriages]
+                    if marriage_list:
+                        # Return the first marriage's event (we just need to check if any exist)
+                        first_marriage = marriage_list[0]
+                        # Extract event from Marriage object
+                        if hasattr(first_marriage, 'event'):
+                            return first_marriage.event
+                        return first_marriage
+            
+            # Try Person.get_event for marriage
+            if hasattr(person, 'get_event'):
+                marriage = person.get_event('marriage')
+                if marriage:
+                    # Extract event from Marriage object
+                    if hasattr(marriage, 'event'):
+                        return marriage.event
+                    return marriage
+            
+            return None
+        
+        # For non-marriage events, use standard approach
         # Try EnrichedPerson
         if hasattr(person, 'get_explicit_event'):
             return person.get_explicit_event(event_type)
