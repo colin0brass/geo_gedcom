@@ -43,6 +43,11 @@ class Enrichment:
             rules=self.rules,
             app_hooks=app_hooks
         )
+        
+        # Initialize attributes that get set during enrichment
+        self.people = people or {}
+        self.issues = []
+        
         if people:
             self.enrich(people)
 
