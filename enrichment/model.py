@@ -1,4 +1,3 @@
-from xxlimited import new
 from geo_gedcom.person import Person
 from geo_gedcom.life_event import LifeEvent
 from dataclasses import dataclass, field
