@@ -11,12 +11,16 @@ class AppHooks(Protocol):
         preprocess_address(address: str) -> str:
             Preprocess an address string before geocoding.
     """
-    def report_step(self, state: str = None, target: int = None, reset_counter: bool = False, plus_step: int = 1, set_counter: int = None) -> None:
+    def report_step(self, info: str = None, target: int = None, reset_counter: bool = False, plus_step: int = 1, set_counter: int = None) -> None:
         """
         Report progress messages from the geocoding process.
 
         Args:
-            message (str): Progress message.
+            info (str): Progress message/information.
+            target (int): Target count for progress tracking.
+            reset_counter (bool): Whether to reset the counter.
+            plus_step (int): Incremental step count.
+            set_counter (int): Directly set the counter value.
         """
         pass
 

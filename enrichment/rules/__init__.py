@@ -1,15 +1,23 @@
-"""
-Enrichment rules for genealogical data.
-
-This module contains built-in enrichment rules that apply domain knowledge
-to infer missing information and detect data quality issues.
+"""Enrichment rules: Domain-specific inference and validation for genealogical data.
 
 Built-in rules:
-    - DeathFromBurialRule: Infers death events from burial records
-    - ParentChildBoundsRule: Validates parent-child age compatibility
-    - ImplausibleAgeRule: Detects implausibly old people (120+ years)
+    - DeathFromBurialRule: Infers death date from burial event
+    - ParentChildBoundsRule: Validates parent-child age relationships
+    - ImplausibleAgeRule: Detects implausibly long lifespans (120+ years)
 
-Custom rules can be created by subclassing BaseRule and using @register_rule.
+Extensibility:
+    Create custom rules by:
+        1. Subclass BaseRule or EnrichmentRule Protocol
+        2. Implement run(person) → list[InferredEvent]
+        3. Use @register_rule decorator for automatic registration
+
+Example:
+    >>> from geo_gedcom.enrichment.rules import BaseRule, register_rule
+    >>> @register_rule
+    ... class MyCustomRule(BaseRule):
+    ...     def run(self, person):
+    ...         # custom inference logic
+    ...         return inferred_events
 """
 
 from .base import EnrichmentRule

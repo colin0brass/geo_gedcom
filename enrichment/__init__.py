@@ -1,18 +1,36 @@
-"""
-Enrichment module for genealogical data.
+"""Enrichment module: Data quality improvement and inference pipeline for genealogical data.
 
-This module provides a flexible pipeline for enriching genealogical data by:
-- Inferring missing events (e.g., death from burial)
-- Detecting data quality issues (e.g., implausible ages)
-- Tightening date bounds using relationships
-- Generating confidence-rated inferences with provenance
+Provides a flexible, pluggable pipeline for enriching genealogical data by:
+    - Inferring missing events (e.g., death from burial, birth from marriage)
+    - Detecting data quality issues (e.g., implausible ages, date inconsistencies)
+    - Tightening date bounds using family relationships
+    - Computing confidence scores for inferences
+    - Tracking provenance (which rule produced which inference)
 
-Main components:
+Core classes:
     - Enrichment: High-level interface for running enrichment
-    - EnrichmentPipeline: Orchestrates rule execution
-    - EnrichmentConfig: Configuration management
-    - EnrichedPerson: Wrapper with inferred data and issues
-    - Built-in rules: DeathFromBurialRule, ParentChildBoundsRule, ImplausibleAgeRule
+    - EnrichmentPipeline: Orchestrates rule execution and aggregates results
+    - EnrichmentConfig: Configuration for pipeline behavior
+    - EnrichedPerson: Wrapper containing inferred events and detected issues
+    - EnrichmentResult: Output containing enriched people and aggregate statistics
+
+Data models:
+    - InferredEvent: Event inferred with confidence and provenance
+    - Issue: Data quality issue with severity level and message
+    - Provenance: Origin tracking (rule name, date, confidence)
+    - Confidence: Confidence level (HIGH, MEDIUM, LOW)
+    - DateRange: Date range with optional bounds
+
+Built-in rules:
+    - DeathFromBurialRule: Infers death from burial events
+    - ParentChildBoundsRule: Validates parent-child age relationships
+    - ImplausibleAgeRule: Flags people older than 120 years
+
+Customization:
+    Create custom rules by:
+        1. Subclass BaseRule
+        2. Implement run(person) method
+        3. Use @register_rule decorator
 
 Example:
     >>> from geo_gedcom.enrichment import Enrichment

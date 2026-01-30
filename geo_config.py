@@ -35,23 +35,25 @@ class GeoConfig:
         fallback_continent_map (Dict[str, str]): Fallback continent mapping for country codes.
     """
 
-    def __init__(self, geo_config_path: Optional[Path] = None):
-        """
-        Initialize GeoConfig with country data from pycountry and optional config file.
+    def __init__(self, geo_config_path: Optional[Path] = None) -> None:
+        """Initialize GeoConfig with country data and optional configuration.
 
         Args:
-            geo_config_path (Optional[Path]): Path to the configuration YAML file.
+            geo_config_path: Optional path to the configuration YAML file.
+            
+        Raises:
+            TypeError: If geo_config_path is not a Path or None.
         """
         if geo_config_path is not None and not isinstance(geo_config_path, Path):
             raise TypeError("geo_config_path must be a pathlib.Path or None")
-        self.__geo_config_path = geo_config_path
-        self.countrynames = []
-        self.countrynames_lower = []
-        self.country_name_to_code_dict = {}
-        self.country_code_to_continent_dict = {}
-        self.country_code_to_name_dict = {}
-        self.country_code_to_continent_dict = {}
-        self.country_substitutions_lower = {}
+        self.__geo_config_path: Optional[Path] = geo_config_path
+        self.countrynames: list[str] = []
+        self.countrynames_lower: list[str] = []
+        self.country_name_to_code_dict: dict = {}
+        self.country_code_to_continent_dict: dict = {}
+        self.country_code_to_name_dict: dict = {}
+        self.country_substitutions_lower: dict = {}
+        self.countrynames_dict_lower: dict = {}  # Initialize to empty dict
         self.default_country = None
         self.fallback_continent_map = {}
 
@@ -188,7 +190,7 @@ class GeoConfig:
             if found_country:
                 found = True
 
-        if not found and self.default_country.lower() != 'none':
+        if not found and self.default_country and self.default_country.lower() != 'none':
             logger.info(f"Adding default country '{self.default_country}' to place '{place}'")
             place_lower = place_lower + ', ' + self.default_country
             country_name = self.default_country

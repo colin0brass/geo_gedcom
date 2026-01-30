@@ -1,30 +1,69 @@
-"""geo_gedcom package: Exposes core classes and utilities for GEDCOM geocoding and mapping."""
+"""Geo-GEDCOM package: GEDCOM parsing, geocoding, and genealogical data processing.
 
-from geo_gedcom.addressbook import AddressBook
-from geo_gedcom.gedcom import Gedcom, GenerationTracker
-from geo_gedcom.gedcom_date import GedcomDate
-from geo_gedcom.gedcom_parser import GedcomParser
-from geo_gedcom.geocache import GeoCache
-from geo_gedcom.geocode import Geocode
-from geo_gedcom.geolocated_gedcom import GeolocatedGedcom
-from geo_gedcom.lat_lon import LatLon
-from geo_gedcom.location import Location
-from geo_gedcom.person import LifeEvent, Partner, Person
-from geo_gedcom.marriage import Marriage  # Add this if you want Marriage public
+This package provides comprehensive GEDCOM file parsing, geocoding (address-to-GPS),
+address enrichment, genealogical relationship tracking, and data quality analysis.
+
+Core components:
+    - GedcomParser: Parse GEDCOM files into structured data
+    - Gedcom: High-level GEDCOM file interface
+    - GeolocatedGedcom: GEDCOM with geocoded addresses
+    - Person: Individual genealogical record
+    - Marriage: Marital relationship record
+    - GedcomDate: Genealogical date representation
+    - LatLon: Geographic coordinate
+    - Location: Geographic location with address
+    - Geocode: Address-to-GPS resolution
+    - GeoCache: Geocoding result caching
+    - AddressBook: Centralized address management
+    - GenerationTracker: Family generation tracking
+
+Submodules:
+    - enrichment: Data quality enrichment and inference
+    - app_hooks: Callback protocol for customization
+    - geo_config: Geographic configuration
+
+Usage:
+    >>> from geo_gedcom import GedcomParser, GeolocatedGedcom
+    >>> parser = GedcomParser()
+    >>> people = parser.parse('family.ged')
+    >>> geogedcom = GeolocatedGedcom(people)
+    >>> geogedcom.add_geocoding_callback(...)
+"""
+
+from .addressbook import AddressBook
+from .gedcom import Gedcom, GenerationTracker
+from .gedcom_date import GedcomDate
+from .gedcom_parser import GedcomParser
+from .geocache import GeoCache
+from .geocode import Geocode
+from .geolocated_gedcom import GeolocatedGedcom
+from .lat_lon import LatLon
+from .location import Location
+from .person import LifeEvent, Partner, Person
+from .marriage import Marriage
+from .app_hooks import AppHooks
+from .geo_config import GeoConfig
 
 __all__ = [
-    "AddressBook",
-    "Gedcom",
-    "GedcomDate",
+    # Core GEDCOM
     "GedcomParser",
-    "Geocode",
+    "Gedcom",
     "GeolocatedGedcom",
-    "GeoCache",
-    "GenerationTracker",
-    "LatLon",
-    "LifeEvent",
-    "Location",
-    "Marriage",         # Add this if you want Marriage public
-    "Partner",
+    # Person/relationship data
     "Person",
+    "Marriage",
+    "Partner",
+    "LifeEvent",
+    # Geographic data
+    "LatLon",
+    "Location",
+    "GedcomDate",
+    # Geocoding
+    "Geocode",
+    "GeoCache",
+    "AddressBook",
+    # Utilities
+    "GenerationTracker",
+    "AppHooks",
+    "GeoConfig",
 ]
