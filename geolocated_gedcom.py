@@ -244,5 +244,5 @@ class GeolocatedGedcom(Gedcom):
             else:
                 logger.info(f"No place tag found for event in record {record}")
         else:
-            logger.warning("No record found for event")
+            logger.info("No record found for event")
         return event
