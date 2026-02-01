@@ -354,16 +354,16 @@ class Geocode:
                 if (not cache_entry.found_country) or (cache_entry.country_name == ''):
                     # Not sure this is needed
                     if cache_entry.found_country:
-                        logger.info(f"Found country in cache for {use_place_name}, but it was not marked as found.")
+                        logger.debug(f"Found country in cache for {use_place_name}, but it was not marked as found.")
                         location.found_country = True
                         location.country_code = country_code.upper()
                         location.country_name = country_name
                         location.continent = self.get_continent_for_country_code(country_code)
                         self.geo_cache.add_geo_cache_entry(place, location)
                     else:
-                        logger.info(f"Unable to add country from geo cache lookup for {use_place_name}")
+                        logger.debug(f"Unable to add country from geo cache lookup for {use_place_name}")
                 if not location.found_country:
-                    logger.info(f"Country not found in cache for {use_place_name}")
+                    logger.debug(f"Country not found in cache for {use_place_name}")
 
         if not found_in_cache and not self.cache_only:
             self.num_geocoded += 1
@@ -371,10 +371,10 @@ class Geocode:
             if location is not None:
                 location.address = place
                 self.geo_cache.add_geo_cache_entry(place, location)
-                logger.info(f"Geocoded {place} to {location.latlon}")
+                logger.debug(f"Geocoded {place} to {location.latlon}")
             else: # record negative cache so we avoid re-trying repeatedly
                 self.geo_cache.add_no_result_entry(place)
-                logger.info(f"Geocoding couldn't find {place}, so marked as no_result to reduce fruitless attempts.")
+                logger.debug(f"Geocoding couldn't find {place}, so marked as no_result to reduce fruitless attempts.")
 
         if location:
             continent = location.continent

@@ -192,7 +192,7 @@ class GeolocatedGedcom(Gedcom):
                 location = None
                 self.address_book.add_address(place, location)
                 num_addresses_didnt_exist += 1
-                logger.info(f"Added address to address book: `{place}`")
+                logger.debug(f"Added address to address book: `{place}`")
             else:
                 num_addresses_existed += 1
         logger.info(f"Address book read completed: {num_addresses} addresses, {num_addresses_existed} already existed, {num_addresses_didnt_exist} added.")
@@ -241,7 +241,7 @@ class GeolocatedGedcom(Gedcom):
                     else:
                         event.location.latlon = None
             else:
-                logger.info(f"No place tag found for event in record {record}")
+                logger.debug(f"No place tag found for event in record {record}")
         else:
-            logger.info("No record found for event")
+            logger.debug("No record found for event")
         return event

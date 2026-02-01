@@ -297,7 +297,7 @@ class GeoCache:
             alt_addr_file (Optional[Path]): Path to alternative address file.
         """
         if not alt_addr_file or not os.path.exists(alt_addr_file):
-            logger.info(f'No alternative address file found: {alt_addr_file}')
+            logger.debug(f'No alternative address file found: {alt_addr_file}')
             return
         try:
             with open(alt_addr_file, newline='', encoding='utf-8') as f:

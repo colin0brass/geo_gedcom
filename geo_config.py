@@ -233,7 +233,7 @@ class GeoConfig:
 
         country_name, found_sub = self.substitute_country_name(last_place_element)
         if found_sub:
-            logger.info(f"Substituting country '{last_place_element}' with '{country_name}' in place '{place}'")
+            logger.debug(f"Substituting country '{last_place_element}' with '{country_name}' in place '{place}'")
             place_lower = place_lower.replace(last_place_element, country_name)
             found = True
         else:
@@ -242,7 +242,7 @@ class GeoConfig:
                 found = True
 
         if not found and self.default_country and self.default_country.lower() != 'none':
-            logger.info(f"Adding default country '{self.default_country}' to place '{place}'")
+            logger.debug(f"Adding default country '{self.default_country}' to place '{place}'")
             place_lower = place_lower + ', ' + self.default_country
             country_name = self.default_country
 
