@@ -198,7 +198,8 @@ class GeoCache:
         cache_file: str,
         always_geocode: bool,
         alt_addr_file: Optional[Path] = None,
-        file_geo_cache_path: Optional[Path] = None
+        file_geo_cache_path: Optional[Path] = None,
+        days_between_retrying_failed_geocodes: int = 7
     ):
         """
         Initialize the GeoCache object.
@@ -208,6 +209,7 @@ class GeoCache:
             always_geocode (bool): If True, ignore cache and always geocode.
             alt_addr_file (Optional[Path]): Path to alternative address file.
             file_geo_cache_path (Optional[Path]): Path to per-file geo cache.
+            days_between_retrying_failed_geocodes: int = 7
         """
         self.location_cache_file = cache_file
         self.always_geocode = always_geocode
@@ -215,7 +217,7 @@ class GeoCache:
         self.alt_addr_cache: Dict[str, GeoCacheAltAddrEntry] = {}
         self.file_geo_cache_path = file_geo_cache_path
 
-        self.time_between_retrying_failed_geocodes = 1 * 24 * 3600  # One day
+        self.time_between_retrying_failed_geocodes = days_between_retrying_failed_geocodes * 24 * 3600  # One day
 
         self.geo_cache = self.read_geo_cache(self.location_cache_file)
         self.geo_cache.update(self.read_geo_cache(self.file_geo_cache_path))

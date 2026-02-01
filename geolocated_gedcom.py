@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 
 from .gedcom import Gedcom
 from .geocode import Geocode
+from .geo_config import GeoConfig
 from .location import Location
 from .addressbook import AddressBook
 from .life_event import LifeEvent
@@ -24,6 +25,7 @@ class GeolocatedGedcom(Gedcom):
     __slots__ = [
         'geocoder',
         'address_book',
+        'geo_config',
         'alt_place_file_path',
         'geo_config_path',
         'file_geo_cache_path',
@@ -36,11 +38,9 @@ class GeolocatedGedcom(Gedcom):
             self,
             gedcom_file: Path,
             location_cache_file: Path,
-            default_country: Optional[str] = None,
-            always_geocode: Optional[bool] = False,
-            cache_only: Optional[bool] = False,
             alt_place_file_path: Optional[Path] = None,
             geo_config_path: Optional[Path] = None,
+            geo_config_updates: Optional[Dict] = None,
             file_geo_cache_path: Optional[Path] = None,
             app_hooks: Optional['AppHooks'] = None,
             fuzz: bool = False
@@ -51,30 +51,29 @@ class GeolocatedGedcom(Gedcom):
         Args:
             gedcom_file (str): Path to GEDCOM file.
             location_cache_file (str): Location cache file.
-            default_country (Optional[str]): Default country for geocoding.
             always_geocode (Optional[bool]): Whether to always geocode.
             cache_only (Optional[bool]): Whether to only use cache for geocoding.
             alt_place_file_path (Optional[Path]): Path to alternative place file.
             geo_config_path (Optional[Path]): Path to geographic configuration file.
             file_geo_cache_path (Optional[Path]): Path to per-file geo cache.
+            geo_config_updates: Optional[Dict] = None
+            app_hooks (Optional[AppHooks]): Application hooks for progress reporting.
         """
         super().__init__(gedcom_file=gedcom_file, app_hooks=app_hooks)
 
         self.address_book = AddressBook(fuzz=fuzz)
         self.app_hooks = app_hooks
 
+        self.geo_config = GeoConfig(geo_config_path, geo_config_updates)
         self._report_step("Initializing geocoder ...", target=0, reset_counter=True)
         self.geocoder = Geocode(
             cache_file=location_cache_file,
-            default_country=default_country,
-            always_geocode=always_geocode,
-            cache_only=cache_only,
+            geo_config=self.geo_config,
             alt_place_file_path=alt_place_file_path if alt_place_file_path else None,
-            geo_config_path=geo_config_path if geo_config_path else None,
             file_geo_cache_path=file_geo_cache_path,
             app_hooks=app_hooks
         )
-        self.cache_only = cache_only
+        cache_only = self.geo_config.get_geo_config('cache_only', False)
 
         self._report_step("Reading address book ...", target=0, reset_counter=True)
         self.read_full_address_book()

@@ -14,11 +14,7 @@ import re
 from pathlib import Path
 from typing import Optional, Tuple, Dict
 
-from numpy import place
-import pycountry
-import pycountry_convert as pc
 import requests
-import yaml  # Ensure PyYAML is installed
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable
 from geopy.adapters import AdapterHTTPError
@@ -35,26 +31,6 @@ from .geocache import GeoCache
 # Re-use higher-level logger (inherits configuration from main script)
 logger = logging.getLogger(__name__)
 
-GEOCODEUSERAGENT = "gedcom_geocoder"
-
-def load_yaml_config(path: Path) -> dict:
-    """
-    Load YAML configuration from the given path.
-
-    Args:
-        path (Path): Path to the YAML file.
-
-    Returns:
-        dict: Parsed YAML configuration or empty dict if not found/error.
-    """
-    try:
-        with open(path, "r") as f:
-            return yaml.safe_load(f)
-    except FileNotFoundError as e:
-        logger.warning(f"Could not load geo_config.yaml: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error loading geo_config.yaml: {e}")
-    return {}
 
 class Geocode:
     """
@@ -73,21 +49,23 @@ class Geocode:
     """
 
     __slots__ = [
-        'default_country', 'always_geocode', 'cache_only', 'location_cache_file', 'additional_countries_codes_dict_to_add',
+        'default_country', 'always_geocode', 'cache_only', 'geo_config', 'location_cache_file', 'additional_countries_codes_dict_to_add',
         'additional_countries_to_add', 'country_substitutions', 'geo_cache',
         'geolocator', 'geo_config', 'app_hooks', '_last_geocode_time',
-        'num_geocoded', 'num_from_cache', 'num_from_cache_no_location_result'
+        'num_geocoded', 'num_from_cache', 'num_from_cache_no_location_result',
+        'max_retries', 'retry_delay', 'backoff_base', 'geocode_timeout', 'days_between_retrying_failed_lookups',
+        'get_continent_for_country_code', 'get_place_and_countrycode'
     ]
-    geocode_sleep_interval = 1  # Delay due to Nominatim request limit
+    
+    # Class constants
+    HTTP_SERVER_ERROR_MIN = 500  # Start of HTTP 5xx server error range (transient/retryable)
+    HTTP_SERVER_ERROR_MAX = 600  # End of HTTP 5xx server error range (exclusive)
 
     def __init__(
         self,
         cache_file: str,
-        default_country: Optional[str] = None,
-        always_geocode: bool = False,
-        cache_only: Optional[bool] = False,
+        geo_config: GeoConfig,
         alt_place_file_path: Optional[Path] = None,
-        geo_config_path: Optional[Path] = None,
         file_geo_cache_path: Optional[Path] = None,
         app_hooks: Optional['AppHooks'] = None
     ):
@@ -96,20 +74,28 @@ class Geocode:
 
         Args:
             cache_file (str): Path to cache file.
-            default_country (str, optional): Default country for geocoding.
-            always_geocode (bool): Ignore cache if True.
             alt_place_file_path (Optional[Path]): Alternative place names file path.
-            geo_config_path (Optional[Path]): Path to geocode.yaml configuration file.
             file_geo_cache_path (Optional[Path]): Path to per-file geo cache.
         """
-        self.default_country = default_country
-        self.always_geocode = always_geocode
-        self.cache_only = cache_only
         self.location_cache_file = cache_file
 
-        self.geo_cache = GeoCache(cache_file, always_geocode, alt_place_file_path, file_geo_cache_path)
-        self.geolocator = Nominatim(user_agent="gedcom_geocoder")
-        self.geo_config = GeoConfig(geo_config_path)
+        geocode_settings = geo_config.get_geo_config('geocode_settings')
+        self.always_geocode = geo_config.get_geo_config('always_geocode', False)
+        self.cache_only = geo_config.get_geo_config('cache_only', False)
+        self.default_country = geocode_settings.get('default_country', '')
+        # self.additional_countries_codes_dict_to_add = geo_config.get_geo_config('additional_countries_codes_dict_to_add') or {}
+        self.max_retries = geocode_settings.get('max_retries', 3)
+        self.retry_delay = geocode_settings.get('rate_limit_seconds', 1.0)
+        self.backoff_base = geocode_settings.get('backoff_base', 0.5)
+        self.geocode_timeout = geocode_settings.get('timeout', 10.0)
+        self.days_between_retrying_failed_lookups = geocode_settings.get('days_between_retrying_failed_lookups', 7)
+        self.get_continent_for_country_code = geo_config.get_continent_for_country_code
+        self.get_place_and_countrycode = geo_config.get_place_and_countrycode
+
+        self.geo_cache = GeoCache(cache_file, self.always_geocode, alt_place_file_path, file_geo_cache_path,
+                                  self.days_between_retrying_failed_lookups)
+        user_agent = geocode_settings.get('user_agent', "gedcom_geocoder")
+        self.geolocator = Nominatim(user_agent=user_agent)
 
         self.app_hooks = app_hooks
 
@@ -126,7 +112,130 @@ class Geocode:
         if self.geo_cache.location_cache_file:
             self.geo_cache.save_geo_cache()
 
-    def geocode_address(self, address: str, country_code: str, country_name: str, found_country: bool = False, address_depth: int = 0) -> Optional[Location]:
+    def _wait_for_rate_limit(self) -> None:
+        """Wait if necessary to respect rate limiting between geocoding requests."""
+        last_ts = getattr(self, "_last_geocode_time", 0.0)
+        now = time.time()
+        to_wait = self.retry_delay - (now - last_ts)
+        if to_wait > 0:
+            time.sleep(to_wait)
+
+    def _perform_geocode_request(self, address: str, country_code: str) -> Optional[any]:
+        """
+        Perform a single geocoding request.
+
+        Args:
+            address: The address to geocode.
+            country_code: The country code to use for filtering.
+
+        Returns:
+            The geocoding result or None if no match found.
+        """
+        self._last_geocode_time = time.time()
+        ccodes = country_code if (country_code and country_code.lower() != 'none') else None
+        return self.geolocator.geocode(
+            address, country_codes=ccodes, timeout=self.geocode_timeout,
+            addressdetails=True, exactly_one=True,
+            language="en"
+        )
+
+    def _infer_country_from_result(self, geo_location, country_code: str, country_name: str, found_country: bool) -> Tuple[str, str, bool]:
+        """
+        Infer country information from geocoding result if not already known.
+
+        Args:
+            geo_location: The geocoding result object.
+            country_code: Current country code.
+            country_name: Current country name.
+            found_country: Whether country was already found.
+
+        Returns:
+            Tuple of (country_code, country_name, found_country).
+        """
+        if not country_name or country_name.lower() == 'none':
+            if 'country' in geo_location.raw.get('address', {}):
+                country_name = geo_location.raw['address']['country']
+                country_code = geo_location.raw['address'].get('country_code', '').upper()
+                found_country = True
+        return country_code, country_name, found_country
+
+    def _is_retryable_error(self, error: Exception) -> bool:
+        """
+        Determine if an error is retryable (transient) or not.
+
+        Args:
+            error: The exception that occurred.
+
+        Returns:
+            True if the error is retryable, False otherwise.
+        """
+        status = getattr(error, 'status', None)
+        return status is not None and self.HTTP_SERVER_ERROR_MIN <= status < self.HTTP_SERVER_ERROR_MAX
+
+    def _backoff_sleep(self, attempt: int, address: str) -> None:
+        """
+        Perform exponential backoff sleep before retry.
+
+        Args:
+            attempt: Current attempt number.
+            address: The address being geocoded (for logging).
+        """
+        sleep_time = self.retry_delay * (2 ** (attempt - 1)) + random.uniform(0.0, self.backoff_base)
+        logger.info(f"Retrying geocode for {address} (attempt {attempt+2}/{self.max_retries}) after {sleep_time:.2f} seconds...")
+        time.sleep(sleep_time)
+
+    def _create_location_from_result(self, geo_location, country_code: str, country_name: str, found_country: bool) -> Location:
+        """
+        Create a Location object from a successful geocoding result.
+
+        Args:
+            geo_location: The geocoding result object.
+            country_code: Country code.
+            country_name: Country name.
+            found_country: Whether country was found.
+
+        Returns:
+            Location object with geocoding results.
+        """
+        continent = self.get_continent_for_country_code(country_code)
+        return Location(
+            used=1,
+            latlon=LatLon(geo_location.latitude, geo_location.longitude),
+            country_code=country_code,
+            country_name=country_name,
+            continent=continent,
+            found_country=found_country,
+            address=geo_location.address
+        )
+
+    def _retry_with_less_precision(self, address: str, country_code: str, country_name: str, 
+                                   found_country: bool, address_depth: int) -> Optional[Location]:
+        """
+        Retry geocoding with less precise address (removing leftmost component).
+
+        Args:
+            address: The original address.
+            country_code: Country code.
+            country_name: Country name.
+            found_country: Whether country was found.
+            address_depth: Current recursion depth.
+
+        Returns:
+            Location object or None.
+        """
+        if address_depth >= 3:
+            return None
+            
+        logger.info(f"Retrying geocode for {address} with less precision")
+        parts = address.split(',')
+        if len(parts) > 1:
+            less_precise_address = ','.join(parts[1:]).strip()
+            return self.geocode_address(less_precise_address, country_code, country_name, 
+                                       found_country, address_depth + 1)
+        return None
+
+    def geocode_address(self, address: str, country_code: str, country_name: str, 
+                       found_country: bool = False, address_depth: int = 0) -> Optional[Location]:
         """
         Geocode an address string and return a Location object.
 
@@ -140,81 +249,51 @@ class Geocode:
         Returns:
             Optional[Location]: Location object or None.
         """
-        location = None
-
         if not address or self.cache_only:
             return None
 
-        max_retries = 3
         geo_location = None
-        backoff_base = 0.5
-        for attempt in range(1, max_retries + 1):
-            # refresh last request timestamp each iteration
-            last_ts = getattr(self, "_last_geocode_time", 0.0)
-            now = time.time()
-            to_wait = self.geocode_sleep_interval - (now - last_ts)
-            if to_wait > 0:
-                time.sleep(to_wait)
+        for attempt in range(1, self.max_retries + 1):
+            self._wait_for_rate_limit()
+            
             try:
-                self._last_geocode_time = time.time()
-                ccodes = country_code if (country_code and country_code.lower() != 'none') else None
-                logger.debug(f"Geocoding {address} country={ccodes} (attempt {attempt}/{max_retries})")
-                geo_location = self.geolocator.geocode(
-                    address, country_codes=ccodes, timeout=10,
-                    addressdetails=True, exactly_one=True,
-                    language="en"
-                )
+                logger.debug(f"Geocoding {address} (attempt {attempt}/{self.max_retries})")
+                geo_location = self._perform_geocode_request(address, country_code)
 
-                # If geopy returned None (HTTP 200 but no match), do not retry — it's not a transient error.
                 if geo_location is None:
-                    logger.debug("No geocoding result for %r (not retrying)", place)
+                    logger.debug("No geocoding result for %r (not retrying)", address)
                 else:
-                    if not country_name or country_name.lower() == 'none':
-                        # Try to infer country from geocoding result
-                        if 'country' in geo_location.raw.get('address', {}):
-                            country_name = geo_location.raw['address']['country']
-                            country_code = geo_location.raw['address'].get('country_code', '').upper()
-                            found_country = True
+                    country_code, country_name, found_country = self._infer_country_from_result(
+                        geo_location, country_code, country_name, found_country)
                 break  # Successful geocode, exit retry loop
-            except (GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable, AdapterHTTPError, requests.RequestException) as e:
-                # Determine HTTP status when available and treat 5xx as transient (retryable) errors
-                status = getattr(e, 'status', None)
-                if status and 500 <= status < 600:
-                    logger.error(f"Transient geocoding error for {address} (HTTP {status}): {e}")
+                
+            except (GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable, 
+                   AdapterHTTPError, requests.RequestException) as e:
+                if self._is_retryable_error(e):
+                    logger.error(f"Transient geocoding error for {address} (HTTP {getattr(e, 'status', None)}): {e}")
                 else:
                     logger.error(f"Non-retryable geocoding error for {address}: {e}")
                     break  # Non-retryable error, exit loop
-                
+                    
             except Exception as e:
-                logger.error(f"Unexpected error geocoding {address} (attempt {attempt}/{max_retries}): {e}")
+                logger.error(f"Unexpected error geocoding {address} (attempt {attempt}/{self.max_retries}): {e}")
 
-            # exponential backoff with small jitter before next attempt
-            if attempt < max_retries:
-                sleep_time = backoff_base * (2 ** (attempt - 1)) + random.uniform(0.0, 0.2)
-                logger.info(f"Retrying geocode for {address} (attempt {attempt+2}/{max_retries}) after {sleep_time} seconds...")
-                time.sleep(sleep_time)
+            # Handle retry backoff
+            if attempt < self.max_retries:
+                self._backoff_sleep(attempt, address)
             else:
-                logger.error(f"Giving up on geocoding {address} after {max_retries} attempts.")
+                logger.error(f"Giving up on geocoding {address} after {self.max_retries} attempts.")
                 geo_location = None
 
+        # Create location from successful result
+        location = None
         if geo_location:
-            continent = self.geo_config.get_continent_for_country_code(country_code)
-            location = Location(
-                used=1,
-                latlon=LatLon(geo_location.latitude, geo_location.longitude),
-                country_code=country_code,
-                country_name=country_name,
-                continent=continent,
-                found_country=found_country,
-                address=geo_location.address
-            )
+            location = self._create_location_from_result(geo_location, country_code, country_name, found_country)
 
-        if location is None and address_depth < 3:
-            logger.info(f"Retrying geocode for {address} with less precision")
-            parts = address.split(',')
-            if len(parts) > 1:
-                less_precise_address = ','.join(parts[1:]).strip()
-                location = self.geocode_address(less_precise_address, country_code, country_name, found_country, address_depth + 1)
+        # Try with less precision if unsuccessful
+        if location is None:
+            location = self._retry_with_less_precision(address, country_code, country_name, 
+                                                      found_country, address_depth)
 
         return location
 
@@ -265,7 +344,7 @@ class Geocode:
             self.num_from_cache_no_location_result += 1
             return None
         
-        (place_with_country, country_code, country_name, found_country) = self.geo_config.get_place_and_countrycode(use_place_name)
+        (place_with_country, country_code, country_name, found_country) = self.get_place_and_countrycode(use_place_name)
 
         if cache_entry and not self.always_geocode:
             self.num_from_cache += 1
@@ -279,7 +358,7 @@ class Geocode:
                         location.found_country = True
                         location.country_code = country_code.upper()
                         location.country_name = country_name
-                        location.continent = self.geo_config.get_continent_for_country_code(country_code)
+                        location.continent = self.get_continent_for_country_code(country_code)
                         self.geo_cache.add_geo_cache_entry(place, location)
                     else:
                         logger.info(f"Unable to add country from geo cache lookup for {use_place_name}")
@@ -300,6 +379,6 @@ class Geocode:
         if location:
             continent = location.continent
             if not continent or continent.strip().lower() in ('', 'none'):
-                location.continent = self.geo_config.get_continent_for_country_code(location.country_code)
+                location.continent = self.get_continent_for_country_code(location.country_code)
 
         return location

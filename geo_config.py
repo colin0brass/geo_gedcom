@@ -35,7 +35,7 @@ class GeoConfig:
         fallback_continent_map (Dict[str, str]): Fallback continent mapping for country codes.
     """
 
-    def __init__(self, geo_config_path: Optional[Path] = None) -> None:
+    def __init__(self, geo_config_path: Optional[Path] = None, geo_config_updates: Optional[dict] = None) -> None:
         """Initialize GeoConfig with country data and optional configuration.
 
         Args:
@@ -57,8 +57,12 @@ class GeoConfig:
         self.default_country = None
         self.fallback_continent_map = {}
 
+        self.__geo_config = {}
         if geo_config_path:
             self.load_geo_config()
+        if geo_config_updates:
+            self.update_geo_config(geo_config_updates)
+        self.initialize_country_data()
 
     def load_geo_config(self) -> None:
         """
@@ -77,6 +81,53 @@ class GeoConfig:
         else:
             self.__geo_config = {}
 
+    def get_geo_config(self, key: Optional[str] = None, default=None):
+        """
+        Get the geo configuration dictionary or a specific key value.
+
+        Args:
+            key: Optional key to retrieve a specific value. If None, returns entire config.
+            default: Default value to return if key is not found (only used when key is specified).
+
+        Returns:
+            The entire config dict if key is None, otherwise the value for the specified key.
+            Returns default if key is not found.
+        """
+        if not hasattr(self, '_GeoConfig__geo_config'):
+            return {} if key is None else default
+        
+        if key is None:
+            return self.__geo_config.copy()
+        return self.__geo_config.get(key, default)
+
+    def set_geo_config(self, key: str, value) -> None:
+        """
+        Set a value in the geo configuration dictionary.
+
+        Args:
+            key: The configuration key to set.
+            value: The value to set for the key.
+        """
+        if not hasattr(self, '_GeoConfig__geo_config'):
+            self.__geo_config = {}
+        self.__geo_config[key] = value
+
+    def update_geo_config(self, settings_dict: dict) -> None:
+        """
+        Update multiple values in the geo configuration dictionary from a dict.
+
+        Args:
+            settings_dict: Dictionary of key-value pairs to update in the config.
+        """
+        if not hasattr(self, '_GeoConfig__geo_config'):
+            self.__geo_config = {}
+        self.__geo_config.update(settings_dict)
+
+    def initialize_country_data(self) -> None:
+        """
+        Initialize country data structures from the loaded configuration.
+        Populates country names, codes, substitutions, and continent mappings.
+        """
         country_substitutions = self.__geo_config.get('country_substitutions', {})
         self.default_country = self.__geo_config.get('default_country', '')
         additional_countries_codes_dict_to_add = self.__geo_config.get('additional_countries_codes_dict_to_add', {})
