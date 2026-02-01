@@ -120,7 +120,7 @@ class Location:
                     if value is not None and value != '':
                         unknown.append(key)
         if unknown:
-            logger.info("Ignoring unknown attribute '%s' in Location.from_dict", unknown)
+            logger.debug("Ignoring unknown attribute '%s' in Location.from_dict", unknown)
         obj.used = 0
         return obj
     

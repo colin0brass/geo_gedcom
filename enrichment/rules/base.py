@@ -144,7 +144,7 @@ class BaseRule:
         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
             self.app_hooks.report_step(info=info, target=target, reset_counter=reset_counter, plus_step=plus_step)
         else:
-            logger.info(info)
+            logger.debug(info)
 
     def _stop_requested(self, logger_stop_message: str = "Stop requested by user") -> bool:
         """
@@ -156,6 +156,6 @@ class BaseRule:
         if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
             if self.app_hooks.stop_requested():
                 if logger_stop_message:
-                    logger.info(logger_stop_message)
+                    logger.debug(logger_stop_message)
                 return True
         return False
