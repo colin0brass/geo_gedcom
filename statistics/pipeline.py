@@ -138,7 +138,7 @@ class StatisticsPipeline:
         # Convert to list to allow multiple passes if needed
         people_list = list(people)
         
-        logger.info(f"Running statistics on {len(people_list)} people")
+        logger.debug(f"Running statistics on {len(people_list)} people")
         
         for collector in self.collectors:
             if not collector.enabled:
@@ -146,7 +146,7 @@ class StatisticsPipeline:
                 continue
             
             try:
-                logger.info(f"Running collector: {collector.collector_id}")
+                logger.debug(f"Running collector: {collector.collector_id}")
                 collector_stats = collector.collect(people_list, stats)
                 stats.merge(collector_stats)
             except Exception as e:
