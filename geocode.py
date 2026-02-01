@@ -181,7 +181,6 @@ class Geocode:
             address: The address being geocoded (for logging).
         """
         sleep_time = self.retry_delay * (2 ** (attempt - 1)) + random.uniform(0.0, self.backoff_base)
-        logger.info(f"Retrying geocode for {address} (attempt {attempt+2}/{self.max_retries}) after {sleep_time:.2f} seconds...")
         time.sleep(sleep_time)
 
     def _create_location_from_result(self, geo_location, country_code: str, country_name: str, found_country: bool) -> Location:
@@ -226,7 +225,6 @@ class Geocode:
         if address_depth >= 3:
             return None
             
-        logger.info(f"Retrying geocode for {address} with less precision")
         parts = address.split(',')
         if len(parts) > 1:
             less_precise_address = ','.join(parts[1:]).strip()
@@ -270,7 +268,7 @@ class Geocode:
             except (GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable, 
                    AdapterHTTPError, requests.RequestException) as e:
                 if self._is_retryable_error(e):
-                    logger.error(f"Transient geocoding error for {address} (HTTP {getattr(e, 'status', None)}): {e}")
+                    logger.warning(f"Transient geocoding error for {address} (HTTP {getattr(e, 'status', None)}): {e}")
                 else:
                     logger.error(f"Non-retryable geocoding error for {address}: {e}")
                     break  # Non-retryable error, exit loop
@@ -280,9 +278,10 @@ class Geocode:
 
             # Handle retry backoff
             if attempt < self.max_retries:
+                logger.debug(f"Retrying geocode for {address} (attempt {attempt+1}/{self.max_retries})")
                 self._backoff_sleep(attempt, address)
             else:
-                logger.error(f"Giving up on geocoding {address} after {self.max_retries} attempts.")
+                logger.warning(f"Giving up on geocoding {address} after {self.max_retries} attempts.")
                 geo_location = None
 
         # Create location from successful result
@@ -292,12 +291,13 @@ class Geocode:
 
         # Try with less precision if unsuccessful
         if location is None:
+            logger.debug(f"Retrying geocode for {address} with less precision")
             location = self._retry_with_less_precision(address, country_code, country_name, 
                                                       found_country, address_depth)
 
         return location
 
-    def separate_cached_locations(self, address_book: AddressBook) -> Tuple[AddressBook, AddressBook]:
+    def separate_cached_locations(self, address_book: AddressBook) -> Tuple[AddressBook, AddressBook, AddressBook]:
         """
         Separate addresses into cached and non-cached address books.
 
@@ -305,10 +305,11 @@ class Geocode:
             address_book (AddressBook): Address book containing full addresses.
 
         Returns:
-            Tuple[AddressBook, AddressBook]: (cached_places, non_cached_places)
+            Tuple[AddressBook, AddressBook, AddressBook]: (cached_places, non_cached_places, failed_places)
         """
         fuzz = address_book.fuzz
-        cached_places = AddressBook(fuzz=fuzz)
+        cached_places_with_geolocation = AddressBook(fuzz=fuzz)
+        cached_places_without_geolocation = AddressBook(fuzz=fuzz)
         non_cached_places = AddressBook(fuzz=fuzz)
         
         addresses = list(address_book.addresses().items())
@@ -327,11 +328,14 @@ class Geocode:
             
             place_lower = place.lower()
             if not self.always_geocode and (place_lower in self.geo_cache.geo_cache):
-                cached_places.add_address(place, data)
+                if self.geo_cache.geo_cache[place_lower].no_result:
+                    cached_places_without_geolocation.add_address(place, data)
+                else:
+                    cached_places_with_geolocation.add_address(place, data)
             else:
                 non_cached_places.add_address(place, data)
         
-        return (cached_places, non_cached_places)
+        return (cached_places_with_geolocation, cached_places_without_geolocation, non_cached_places)
 
     def lookup_location(self, place: str) -> Optional[Location]:
         """

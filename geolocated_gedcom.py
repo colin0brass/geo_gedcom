@@ -132,46 +132,88 @@ class GeolocatedGedcom(Gedcom):
         """
         self.geocoder.save_geo_cache()
 
+    def _process_address_book_with_progress(
+        self,
+        address_book: AddressBook,
+        progress_message: str,
+        force_none_location: bool = False,
+        save_cache_interval: int = 0
+    ) -> bool:
+        """
+        Process an address book with progress reporting and stop checking.
+        
+        Args:
+            address_book: The address book to process.
+            progress_message: Message to display during progress.
+            force_none_location: If True, always add None as location regardless of lookup result.
+            save_cache_interval: If > 0, save cache every N items (0 = no periodic saves).
+            
+        Returns:
+            bool: True if stopped by user, False if completed normally.
+        """
+        num_places = address_book.len()
+        self._report_step(progress_message, target=num_places, reset_counter=True)
+        
+        for idx, (place, data) in enumerate(address_book.addresses().items(), 1):
+            use_place = data.alt_addr if data.alt_addr else place
+            location = self.geocoder.lookup_location(use_place)
+            
+            # Add to address book with appropriate location
+            if force_none_location:
+                self.address_book.add_address(place, None)
+            else:
+                self.address_book.add_address(place, location)
+            
+            # Check for stop request
+            if self._stop_requested(logger_stop_message="Geolocation process stopped by user."):
+                return True
+            
+            # Report progress at intervals
+            if idx % self.geolocate_all_logger_interval == 0 or idx == num_places:
+                self._report_step(plus_step=self.geolocate_all_logger_interval)
+            
+            # Save cache periodically if requested
+            if save_cache_interval > 0 and idx % save_cache_interval == 0:
+                self.save_location_cache()
+        
+        return False
+
     def geolocate_all(self, cache_only: bool = False) -> None:
         """
         Geolocate all places in the GEDCOM file.
         """
         self._report_step("Loading cached places ...", target=0, reset_counter=True)
-        cached_places, non_cached_places = self.geocoder.separate_cached_locations(self.address_book)
-        num_cached_places = cached_places.len()
+        cached_places_with_geolocation, cached_places_without_geolocation, non_cached_places = self.geocoder.separate_cached_locations(self.address_book)
+        num_cached_places_with_geolocation = cached_places_with_geolocation.len()
+        num_cached_places_without_geolocation = cached_places_without_geolocation.len()
         num_non_cached_places = non_cached_places.len()
-        logger.info(f"Found {num_cached_places} cached places, {num_non_cached_places} non-cached places.")
+        logger.info(f"Found {num_cached_places_with_geolocation} cached places with geolocation, {num_cached_places_without_geolocation} cached places without geolocation, {num_non_cached_places} non-cached places.")
 
-        self._report_step(f"Matching cached places ...", target=num_cached_places, reset_counter=True)
-        for idx, (place, data) in enumerate(cached_places.addresses().items(), 1):
-            use_place = data.alt_addr if data.alt_addr else place
-            location = self.geocoder.lookup_location(use_place)
-            # Address could be in address book already
-            self.address_book.add_address(place, location)
-            if self._stop_requested(logger_stop_message="Geolocation process stopped by user."):
-                break
-            if idx % self.geolocate_all_logger_interval == 0 or idx == num_cached_places:
-                self._report_step(plus_step=self.geolocate_all_logger_interval)
-        num_non_cached_places = non_cached_places.len()
+        # Process cached places with geolocation
+        if self._process_address_book_with_progress(
+            cached_places_with_geolocation,
+            "Matching cached places with geolocation ..."
+        ):
+            return
 
+        # Process cached places without geolocation
+        if self._process_address_book_with_progress(
+            cached_places_without_geolocation,
+            "Processing cached places without geolocation ...",
+            force_none_location=True
+        ):
+            return
+
+        # Process non-cached places if not in cache-only mode
         if cache_only:
             logger.info("Cache-only mode enabled; skipping geolocation of non-cached places.")
-            return
         else:
-            self._report_step(f"Geolocating uncached places ...", target=num_non_cached_places, reset_counter=True)
-            for idx, (place, data) in enumerate(non_cached_places.addresses().items(), 1):
-                use_place = data.alt_addr if data.alt_addr else place
-                location = self.geocoder.lookup_location(use_place)
-                self.address_book.add_address(place, location)
-                if self._stop_requested(logger_stop_message="Geolocation process stopped by user."):
-                    break
-                if idx % self.geolocate_all_logger_interval == 0 or idx == num_non_cached_places:
-                    logger.info(f"Geolocated {idx} of {num_non_cached_places} non-cached places ...")
-                    self._report_step(plus_step=self.geolocate_all_logger_interval, info=f"Geolocated {idx} of {num_non_cached_places}")
-                # Save the cache every 100 locations
-                if idx % 100 == 0:
-                    self.save_location_cache()
-        self.save_location_cache() # Final save
+            self._process_address_book_with_progress(
+                non_cached_places,
+                "Geolocating uncached places ...",
+                save_cache_interval=100
+            )
+            self.save_location_cache()  # Final save
 
         logger.info(f"Geolocation of all {self.address_book.len()} places completed. ({self.geocoder.num_geocoded} geocoded, {self.geocoder.num_from_cache} from cache, {self.geocoder.num_from_cache_no_location_result} from cache with no location result.)")
 

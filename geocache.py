@@ -353,13 +353,13 @@ class GeoCache:
         if cache_entry:
             if cache_entry.no_result:
                 if self._should_retry_failed_geocode(cache_entry):
-                    logger.info(f"Retrying geocode for previously failed address: {address}")
+                    logger.debug(f"Retrying geocode for previously failed address: {address}")
                     del self.geo_cache[address_lower]
                     return use_addr_name, None
                 return use_addr_name, cache_entry
 
             if alt_addr_entry and alt_addr_name:
-                logger.info(f"Adding alternative address name for cache entry: {address} : {alt_addr_name}")
+                logger.debug(f"Adding alternative address name for cache entry: {address} : {alt_addr_name}")
                 self._update_cache_entry_with_alt_addr(cache_entry, alt_addr_entry)
             return use_addr_name, cache_entry
 
@@ -398,7 +398,7 @@ class GeoCache:
         """
         for address, data in self.alt_addr_cache.items():
             if address.lower() not in self.geo_cache:
-                logger.info(f"Adding alternative address to cache: {address} : {data.get('alt_addr')}")
+                logger.debug(f"Adding alternative address to cache: {address} : {data.get('alt_addr')}")
                 # Use the real Location class for temporary location creation
                 lat = data.get('latitude', '')
                 lon = data.get('longitude', '')
