@@ -69,7 +69,7 @@ class Statistics:
             self.config = StatisticsConfig()
         
         # Create pipeline
-        self.pipeline = StatisticsPipeline(config=self.config)
+        self.pipeline = StatisticsPipeline(config=self.config, app_hooks=app_hooks)
         
         # Run analysis automatically
         self._results = None

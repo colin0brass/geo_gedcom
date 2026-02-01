@@ -24,6 +24,11 @@ class EnrichmentPipeline:
         self.config = config
         self.rules = list(rules)
         self.app_hooks = app_hooks
+        
+        # Set app_hooks on all rules that support it
+        for rule in self.rules:
+            if hasattr(rule, 'app_hooks'):
+                rule.app_hooks = app_hooks
 
     def run(
         self,
@@ -38,16 +43,49 @@ class EnrichmentPipeline:
         issues: List[Issue] = []
         rule_runs: Dict[str, int] = {}
 
+        # Set up progress tracking
+        num_people = len(original_people)
+        enabled_rules = [r for r in self.rules if self.config.rule_enabled(r.rule_id)]
+        total_steps = self.config.max_iterations * len(enabled_rules)
+        self._report_step(info="Enriching data", target=total_steps, reset_counter=True, plus_step=0)
+
         # Iterate until stable or max_iterations reached
         for iteration in range(self.config.max_iterations):
             any_changes = False
+            rule_num = 0
             for rule in self.rules:
                 if not self.config.rule_enabled(rule.rule_id):
                     continue
-                changed = rule.apply(enriched_people, original_people, issues)
+                
+                rule_num += 1
+                
+                # Check for stop request
+                if self._stop_requested("Enrichment stopped by user"):
+                    logger.info(f"Enrichment stopped at iteration {iteration + 1}")
+                    return EnrichmentResult(
+                        enriched_people=enriched_people,
+                        issues=issues,
+                        iterations=iteration + 1,
+                        rule_runs=rule_runs,
+                    )
+                
+                # Pass app_hooks and rule numbering to rules that accept them
+                try:
+                    changed = rule.apply(enriched_people, original_people, issues, app_hooks=self.app_hooks, rule_num=rule_num, total_rules=len(enabled_rules))
+                except TypeError:
+                    # Rule doesn't accept new parameters
+                    try:
+                        changed = rule.apply(enriched_people, original_people, issues, app_hooks=self.app_hooks)
+                    except TypeError:
+                        # Rule doesn't accept app_hooks parameter
+                        changed = rule.apply(enriched_people, original_people, issues)
                 rule_runs[rule.rule_id] = rule_runs.get(rule.rule_id, 0) + 1
                 if changed:
                     any_changes = True
+                
+                # Report progress after each rule
+                self._report_step(plus_step=1)
+            
             if not any_changes:
                 break
 
@@ -58,7 +96,7 @@ class EnrichmentPipeline:
             rule_runs=rule_runs,
     )
 
-    def _report_step(self, info: str = "", target: int = 0, reset_counter: bool = False, plus_step: int = 0) -> None:
+    def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
         """
         Report a step via app hooks if available. (Private method)
 

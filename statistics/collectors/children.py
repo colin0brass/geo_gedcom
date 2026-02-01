@@ -30,13 +30,20 @@ class ChildrenCollector(StatisticsCollector):
     """
     collector_id: str = "children"
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect children statistics."""
         stats = Stats()
         
         # Convert to list and dict for lookups
         people_list = list(people)
+        total_people = len(people_list)
         people_dict = {self._get_id(p): p for p in people_list}
+        
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing children", target=total_people, reset_counter=True, plus_step=0)
         
         # Children counts
         children_per_person = defaultdict(int)
@@ -60,7 +67,13 @@ class ChildrenCollector(StatisticsCollector):
         # Track processed families to avoid duplicates
         processed_families = set()
         
-        for person in people_list:
+        for idx, person in enumerate(people_list):
+            # Check for stop request and report progress every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Children collection stopped"):
+                    break
+                self._report_step(plus_step=100)
+            
             person_id = self._get_id(person)
             
             # Get children

@@ -99,18 +99,37 @@ class Gedcom:
         )
         self.people = self.gedcom_parser.people
 
-        self.enrichment = Enrichment(people=self.people)
+        num_people = len(self.people)
+        self._report_step("Enrichment", target=num_people, reset_counter=True, plus_step=0)
+
+        self.enrichment = Enrichment(people=self.people, app_hooks=self.app_hooks)
         enrichment_num_issues: int = len(self.enrichment.issues)
         if enrichment_num_issues > 0:
             logger.info(f"Enrichment completed with {enrichment_num_issues} issues found")
 
-        self.statistics = Statistics(gedcom_parser=self.gedcom_parser)
+        self._report_step("Statistics", target=num_people, reset_counter=True, plus_step=0)
+        self.statistics = Statistics(gedcom_parser=self.gedcom_parser, app_hooks=self.app_hooks)
 
     def close(self):
         """
         Close the GEDCOM parser and release any resources.
         """
         self.gedcom_parser.close()
+    
+    def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
+        """
+        Report a step via app hooks if available. (Private method)
+
+        Args:
+            info (str): Information message.
+            target (int): Target count for progress.
+            reset_counter (bool): Whether to reset the counter.
+            plus_step (int): Incremental step count.
+        """
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step(info=info, target=target, reset_counter=reset_counter, plus_step=plus_step)
+        else:
+            logger.info(info)
     
     def read_full_address_list(self) -> None:
         """

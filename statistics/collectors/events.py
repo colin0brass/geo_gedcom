@@ -29,9 +29,19 @@ class EventCompletenessCollector(StatisticsCollector):
     
     COMMON_EVENTS = ['birth', 'death', 'burial', 'baptism', 'marriage', 'christening']
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect event completeness statistics."""
         stats = Stats()
+        
+        # Convert to list for progress tracking
+        people_list = list(people)
+        total_people = len(people_list)
+        
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing events", target=total_people, reset_counter=True, plus_step=0)
         
         event_counts = Counter()
         events_with_dates = Counter()
@@ -41,10 +51,12 @@ class EventCompletenessCollector(StatisticsCollector):
         people_with_death = 0
         people_with_burial = 0
         
-        total_people = 0
-        
-        for person in people:
-            total_people += 1
+        for idx, person in enumerate(people_list):
+            # Check for stop request and report progress every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Event collection stopped"):
+                    break
+                self._report_step(plus_step=100)
             
             # Check each common event type
             for event_type in self.COMMON_EVENTS:

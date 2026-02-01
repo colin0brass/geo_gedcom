@@ -25,12 +25,18 @@ class DeathFromBurialRule(BaseRule):
         original_people: Dict[str, Any],
         issues: List[Issue],
         app_hooks: Optional[AppHooks] = None,
+        rule_num: int = None,
+        total_rules: int = None,
     ) -> bool:
         changed = False
+        
+        # Build rule prefix
+        prefix = f"Enrichment ({rule_num}/{total_rules}): " if rule_num and total_rules else "Enrichment: "
+        
         for idx, (person_id, enriched_person) in enumerate(enriched_people.items()):
             if idx % 100 == 0:
                 self._report_step(
-                    info=f"Applying {self.rule_id} to person {person_id} ({idx + 1}/{len(enriched_people)})",
+                    info=f"{prefix}Applying {self.rule_id} to person {person_id} ({idx + 1}/{len(enriched_people)})",
                     target=len(enriched_people),
                     reset_counter=(idx == 0),
                     plus_step=100,

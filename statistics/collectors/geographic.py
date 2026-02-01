@@ -28,15 +28,30 @@ class GeographicCollector(StatisticsCollector):
     """
     collector_id: str = "geographic"
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect geographic statistics."""
         stats = Stats()
+        
+        # Convert to list for progress tracking
+        people_list = list(people)
+        total_people = len(people_list)
+        
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing geography", target=total_people, reset_counter=True, plus_step=0)
         
         birth_places = []
         death_places = []
         all_places = []
         
-        for person in people:
+        for idx, person in enumerate(people_list):
+            # Check for stop request and report progress every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Geographic collection stopped"):
+                    break
+                self._report_step(plus_step=100)
             # Birth place
             birth_place = self._get_place(person, 'birth')
             if birth_place:

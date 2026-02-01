@@ -31,13 +31,20 @@ class RelationshipStatusCollector(StatisticsCollector):
     """
     collector_id: str = "relationship_status"
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect relationship status statistics."""
         stats = Stats()
         
         # Convert to list and dict for lookups
         people_list = list(people)
+        total_people = len(people_list)
         people_dict = {self._get_id(p): p for p in people_list}
+        
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing relationships", target=total_people, reset_counter=True, plus_step=0)
         
         # Status counts
         never_married = 0
@@ -58,7 +65,13 @@ class RelationshipStatusCollector(StatisticsCollector):
         
         current_year = 2026  # Could use datetime.date.today().year
         
-        for person in people_list:
+        for idx, person in enumerate(people_list):
+            # Check for stop request and report progress every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Relationship status collection stopped"):
+                    break
+                self._report_step(plus_step=100)
+            
             person_id = self._get_id(person)
             sex = self._get_sex(person)
             sex_key = sex if sex in ['M', 'F'] else 'Unknown'

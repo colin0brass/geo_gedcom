@@ -36,7 +36,7 @@ class RelationshipPathCollector(StatisticsCollector):
     collector_id: str = "relationship_path"
     focus_person_id: Optional[str] = None
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect relationship path statistics."""
         stats = Stats()
         
@@ -45,7 +45,14 @@ class RelationshipPathCollector(StatisticsCollector):
         if not people_list:
             return stats
         
+        total_people = len(people_list)
         people_dict = {self._get_id(p): p for p in people_list}
+        
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing relationship paths", target=total_people, reset_counter=True, plus_step=0)
         
         # Determine focus person
         focus_person = self._get_focus_person(people_list, people_dict)
@@ -74,7 +81,13 @@ class RelationshipPathCollector(StatisticsCollector):
         # Relationship type counters
         relationship_types = Counter()
         
-        for person_id, rel_info in relationships.items():
+        for idx, (person_id, rel_info) in enumerate(relationships.items()):
+            # Check for stop request and report progress every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Relationship path collection stopped"):
+                    break
+                self._report_step(plus_step=100)
+            
             if person_id == focus_id:
                 continue
             

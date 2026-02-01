@@ -92,9 +92,11 @@ class StatisticsPipeline:
     Attributes:
         collectors: List of collector instances to run
         config: Configuration for the pipeline
+        app_hooks: Optional application hooks for progress reporting
     """
     collectors: List[StatisticsCollector] = field(default_factory=list)
     config: StatisticsConfig = field(default_factory=StatisticsConfig)
+    app_hooks: Optional[Any] = field(default=None)
     
     def __post_init__(self) -> None:
         """
@@ -117,7 +119,7 @@ class StatisticsPipeline:
         for collector_id, collector_cls in registry.items():
             enabled = self.config.is_enabled(collector_id)
             try:
-                collector = collector_cls(enabled=enabled)
+                collector = collector_cls(enabled=enabled, app_hooks=self.app_hooks)
                 self.collectors.append(collector)
                 logger.debug(f"Loaded collector: {collector_id} (enabled={enabled})")
             except Exception as e:
@@ -140,16 +142,61 @@ class StatisticsPipeline:
         
         logger.debug(f"Running statistics on {len(people_list)} people")
         
-        for collector in self.collectors:
+        # Set up progress tracking
+        enabled_collectors = [c for c in self.collectors if c.enabled]
+        total_collectors = len(enabled_collectors)
+        self._report_step(info="Collecting statistics", target=total_collectors, reset_counter=True, plus_step=0)
+        
+        collector_num = 0
+        for idx, collector in enumerate(self.collectors):
             if not collector.enabled:
                 logger.debug(f"Skipping disabled collector: {collector.collector_id}")
                 continue
             
+            collector_num += 1
+            
+            # Check for stop request
+            if self._stop_requested("Statistics collection stopped by user"):
+                logger.info(f"Statistics stopped after {idx} collectors")
+                return stats
+            
             try:
                 logger.debug(f"Running collector: {collector.collector_id}")
-                collector_stats = collector.collect(people_list, stats)
+                collector_stats = collector.collect(people_list, stats, collector_num, total_collectors)
                 stats.merge(collector_stats)
+                
+                # Report progress after each collector
+                self._report_step(plus_step=1)
             except Exception as e:
                 logger.error(f"Error in collector {collector.collector_id}: {e}", exc_info=True)
         
         return stats
+    
+    def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
+        """
+        Report a step via app hooks if available. (Private method)
+
+        Args:
+            info (str): Information message.
+            target (int): Target count for progress.
+            reset_counter (bool): Whether to reset the counter.
+            plus_step (int): Incremental step count.
+        """
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step(info=info, target=target, reset_counter=reset_counter, plus_step=plus_step)
+        else:
+            logger.debug(info)
+
+    def _stop_requested(self, logger_stop_message: str = "Stop requested by user") -> bool:
+        """
+        Check if stop has been requested via app hooks. (Private method)
+
+        Returns:
+            bool: True if stop requested, False otherwise.
+        """
+        if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+            if self.app_hooks.stop_requested():
+                if logger_stop_message:
+                    logger.info(logger_stop_message)
+                return True
+        return False

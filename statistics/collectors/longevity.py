@@ -31,9 +31,19 @@ class LongevityCollector(StatisticsCollector):
     """
     collector_id: str = "longevity"
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect longevity pattern statistics."""
         stats = Stats()
+        
+        # Convert to list for progress tracking
+        people_list = list(people)
+        total_people = len(people_list)
+        
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing longevity", target=total_people, reset_counter=True, plus_step=0)
         
         # Data structures for analysis
         lifespans_by_decade = defaultdict(list)
@@ -48,7 +58,12 @@ class LongevityCollector(StatisticsCollector):
         births_by_decade = Counter()
         deaths_by_decade = Counter()
         
-        for person in people:
+        for idx, person in enumerate(people_list):
+            # Check for stop request and report progress every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Longevity collection stopped"):
+                    break
+                self._report_step(plus_step=100)
             birth_year = self._get_birth_year(person)
             death_year = self._get_death_year(person)
             sex = self._get_sex(person)

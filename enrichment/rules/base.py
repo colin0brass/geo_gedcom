@@ -111,7 +111,7 @@ class BaseRule:
     rule_id: str = "base"
     app_hooks: Optional[AppHooks] = None
 
-    def apply(self, enriched_people: Dict[str, EnrichedPerson], original_people: Dict[str, Any], issues: List[Issue], app_hooks: Optional[AppHooks] = None) -> bool:
+    def apply(self, enriched_people: Dict[str, EnrichedPerson], original_people: Dict[str, Any], issues: List[Issue], app_hooks: Optional[AppHooks] = None, rule_num: int = None, total_rules: int = None) -> bool:
         """
         Apply the rule to enrich person data.
         
@@ -131,7 +131,7 @@ class BaseRule:
         """
         raise NotImplementedError
     
-    def _report_step(self, info: str = "", target: int = 0, reset_counter: bool = False, plus_step: int = 0) -> None:
+    def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
         """
         Report a step via app hooks if available. (Private method)
 

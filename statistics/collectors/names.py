@@ -28,15 +28,32 @@ class NamesCollector(StatisticsCollector):
     """
     collector_id: str = "names"
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect name statistics."""
         stats = Stats()
+        
+        # Convert to list for counting and progress tracking
+        people_list = list(people)
+        total_people = len(people_list)
         
         first_names = []
         middle_names = []
         full_names = []
         
-        for person in people:
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing names", target=total_people, reset_counter=True, plus_step=0)
+        
+        for idx, person in enumerate(people_list):
+            # Check for stop request every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Names collection stopped"):
+                    logger.info(f"Names stopped after {idx} people")
+                    break
+                self._report_step(plus_step=100)
+            
             # Get full name
             full_name = self._get_full_name(person)
             if full_name and full_name != 'Unknown':

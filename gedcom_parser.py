@@ -86,13 +86,13 @@ class GedcomParser:
         """Placeholder for compatibility."""
         pass
 
-    def _report_step(self, info: str = "", target: int = 0, reset_counter: bool = False, plus_step: int = 0) -> None:
+    def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
         """
         Report a step via app hooks if available. (Private method)
 
         Args:
             info (str): Information message.
-            target (int): Target count for progress.
+            target (Optional[int]): Target count for progress.
             reset_counter (bool): Whether to reset the counter.
             plus_step (int): Incremental step count.
         """
@@ -350,13 +350,12 @@ class GedcomParser:
             Dict[str, Person]: Dictionary of Person objects.
         """
         people = {}
-        self._report_step(info="Loading People", target=self.num_people+self.num_families, plus_step=0)
         for idx, record in enumerate(records0('INDI')):
             people[record.xref_id] = self.__create_person(record)
             if self._stop_requested():
                 break
             if idx % 100 == 0:
-                self._report_step(info=f"Loaded {people[record.xref_id].name}", plus_step=100)
+                self._report_step(plus_step=100)
         return people
 
     def _add_marriages(self, people: Dict[str, Person], records) -> Dict[str, Person]:
@@ -462,12 +461,10 @@ class GedcomParser:
             # Single pass: build people and then addresses
             with GedcomReader(str(self.gedcom_file)) as g:
                 records = g.records0
-                self._report_step("Loading people from GED", target=self.num_people+ self.num_families,reset_counter=True, plus_step=0)
+                self._report_step("Loading people from GED", target=self.num_people, reset_counter=True, plus_step=0)
                 self.people = self._create_people(records)
-                self._report_step("Linking families from GED", target=self.num_people + self.num_families, plus_step=0)
+                self._report_step("Linking families from GED", target=self.num_families, reset_counter=True, plus_step=0)
                 self.people = self._add_marriages(self.people, records)
-
-                self._report_step("Loading addresses from GED", target=self.num_people + self.num_families, reset_counter=True, plus_step=0)
 
         except Exception as e:
             logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")

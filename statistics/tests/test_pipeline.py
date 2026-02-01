@@ -18,7 +18,7 @@ class MockCollector(StatisticsCollector):
     """Mock collector for testing."""
     collector_id: str = "mock_collector"
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         stats = Stats()
         stats.add_value('test', 'count', len(list(people)))
         return stats

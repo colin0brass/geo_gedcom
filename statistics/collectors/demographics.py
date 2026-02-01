@@ -32,9 +32,13 @@ class DemographicsCollector(StatisticsCollector):
     """
     collector_id: str = "demographics"
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect demographic statistics."""
         stats = Stats()
+        
+        # Convert to list for counting and progress tracking
+        people_list = list(people)
+        total_people = len(people_list)
         
         total_count = 0
         living_count = 0
@@ -45,7 +49,20 @@ class DemographicsCollector(StatisticsCollector):
         lifespans = []
         surnames = []
         
-        for person in people:
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing demographics", target=total_people, reset_counter=True, plus_step=0)
+        
+        for idx, person in enumerate(people_list):
+            # Check for stop request every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Demographics collection stopped"):
+                    logger.info(f"Demographics stopped after {idx} people")
+                    break
+                self._report_step(plus_step=100)
+            
             total_count += 1
             
             # Check if person is deceased

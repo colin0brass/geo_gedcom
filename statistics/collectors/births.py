@@ -54,9 +54,19 @@ class BirthsCollector(StatisticsCollector):
     """
     collector_id: str = "births"
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect birth statistics."""
         stats = Stats()
+        
+        # Convert to list for progress tracking
+        people_list = list(people)
+        total_people = len(people_list)
+        
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing births", target=total_people, reset_counter=True, plus_step=0)
         
         birth_months = []
         birth_years = []
@@ -67,7 +77,12 @@ class BirthsCollector(StatisticsCollector):
         people_with_month = 0
         people_with_day = 0
         
-        for person in people:
+        for idx, person in enumerate(people_list):
+            # Check for stop request and report progress every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Births collection stopped"):
+                    break
+                self._report_step(plus_step=100)
             # Get birth date details
             birth_date = self._get_birth_date(person)
             birth_year = self._get_birth_year(person)

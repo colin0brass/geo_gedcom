@@ -86,7 +86,7 @@ class GeolocatedGedcom(Gedcom):
 
         self._update_key_value(key="parsed", value=True)
 
-    def _report_step(self, info: str = "", target: int = 0, reset_counter: bool = False, plus_step: int = 0) -> None:
+    def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
         """
         Report a step via app hooks if available. (Private method)
 

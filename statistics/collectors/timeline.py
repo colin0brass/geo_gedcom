@@ -33,9 +33,19 @@ class TimelineCollector(StatisticsCollector):
     # Common event types to track
     EVENT_TYPES = ['birth', 'death', 'burial', 'baptism', 'marriage', 'christening', 'residence']
     
-    def collect(self, people: Iterable[Any], existing_stats: Stats) -> Stats:
+    def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect timeline and event density statistics."""
         stats = Stats()
+        
+        # Convert to list for progress tracking
+        people_list = list(people)
+        total_people = len(people_list)
+        
+        # Build collector prefix
+        prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
+        
+        # Set up progress tracking
+        self._report_step(info=f"{prefix}Analyzing timeline", target=total_people, reset_counter=True, plus_step=0)
         
         # Event tracking
         events_by_year = Counter()
@@ -52,7 +62,12 @@ class TimelineCollector(StatisticsCollector):
         # Year range tracking
         all_years = []
         
-        for person in people:
+        for idx, person in enumerate(people_list):
+            # Check for stop request and report progress every 100 people
+            if idx % 100 == 0:
+                if self._stop_requested("Timeline collection stopped"):
+                    break
+                self._report_step(plus_step=100)
             birth_year = self._get_birth_year(person)
             
             if birth_year:
