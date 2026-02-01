@@ -45,6 +45,16 @@ class ChildrenCollector(StatisticsCollector):
         # Set up progress tracking
         self._report_step(info=f"{prefix}Analyzing children", target=total_people, reset_counter=True, plus_step=0)
         
+        # Build family lookup: (father_id, mother_id) -> list of children
+        # This dramatically improves performance from O(N²) to O(N)
+        family_to_children = defaultdict(list)
+        for person in people_list:
+            father_id = getattr(person, 'father', None)
+            mother_id = getattr(person, 'mother', None)
+            if father_id and mother_id:
+                family_key = tuple(sorted([str(father_id), str(mother_id)]))
+                family_to_children[family_key].append(person)
+        
         # Children counts
         children_per_person = defaultdict(int)
         children_per_person_male = defaultdict(int)
@@ -131,19 +141,14 @@ class ChildrenCollector(StatisticsCollector):
                 if family_key not in processed_families:
                     processed_families.add(family_key)
                     
-                    # Count all children in this family
-                    siblings = []
+                    # Get all children in this family from pre-built lookup
+                    siblings = family_to_children[family_key]
                     sibling_birth_years = []
                     
-                    for p in people_list:
-                        p_father = getattr(p, 'father', None)
-                        p_mother = getattr(p, 'mother', None)
-                        
-                        if str(p_father) == str(father_id) and str(p_mother) == str(mother_id):
-                            siblings.append(p)
-                            birth_year = self._get_birth_year(p)
-                            if birth_year:
-                                sibling_birth_years.append(birth_year)
+                    for sibling in siblings:
+                        birth_year = self._get_birth_year(sibling)
+                        if birth_year:
+                            sibling_birth_years.append(birth_year)
                     
                     family_size = len(siblings)
                     family_sizes.append(family_size)

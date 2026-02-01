@@ -39,6 +39,9 @@ class DivorceCollector(StatisticsCollector):
         people_list = list(people)
         total_people = len(people_list)
         
+        # Build people dictionary for O(1) lookups
+        people_dict = {self._get_id(p): p for p in people_list}
+        
         # Build collector prefix
         prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
         
@@ -161,7 +164,7 @@ class DivorceCollector(StatisticsCollector):
             if divorces_by_person:
                 max_divorces = max(divorces_by_person.values())
                 most_divorced = [
-                    {'person_id': pid, 'name': self._get_name_by_id(people_list, pid), 'divorce_count': count}
+                    {'person_id': pid, 'name': self._get_name_by_id(people_dict, pid), 'divorce_count': count}
                     for pid, count in divorces_by_person.items()
                     if count == max_divorces
                 ]
@@ -374,11 +377,11 @@ class DivorceCollector(StatisticsCollector):
             return person.name
         return f"Unknown ({self._get_id(person)})"
     
-    def _get_name_by_id(self, people_list: List[Any], person_id: str) -> str:
-        """Get person name by ID."""
-        for person in people_list:
-            if self._get_id(person) == person_id:
-                return self._get_name(person)
+    def _get_name_by_id(self, people_dict: Dict[str, Any], person_id: str) -> str:
+        """Get person name by ID using dictionary lookup."""
+        person = people_dict.get(person_id)
+        if person:
+            return self._get_name(person)
         return f"Unknown ({person_id})"
     
     def _median(self, values: List[float]) -> float:
