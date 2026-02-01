@@ -310,12 +310,27 @@ class Geocode:
         fuzz = address_book.fuzz
         cached_places = AddressBook(fuzz=fuzz)
         non_cached_places = AddressBook(fuzz=fuzz)
-        for place, data in address_book.addresses().items():
+        
+        addresses = list(address_book.addresses().items())
+        total_addresses = len(addresses)
+        
+        # Set up progress tracking
+        self._report_step(info="Separating cached locations", target=total_addresses, reset_counter=True, plus_step=0)
+        
+        for idx, (place, data) in enumerate(addresses):
+            # Check for stop request and report progress every 100 addresses
+            if idx % 100 == 0:
+                if self._stop_requested("Geocoding stopped by user"):
+                    logger.info(f"Cache separation stopped after {idx} addresses")
+                    break
+                self._report_step(plus_step=100)
+            
             place_lower = place.lower()
             if not self.always_geocode and (place_lower in self.geo_cache.geo_cache):
                 cached_places.add_address(place, data)
             else:
                 non_cached_places.add_address(place, data)
+        
         return (cached_places, non_cached_places)
 
     def lookup_location(self, place: str) -> Optional[Location]:
@@ -382,3 +397,33 @@ class Geocode:
                 location.continent = self.get_continent_for_country_code(location.country_code)
 
         return location
+
+    def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
+        """Report a step via app hooks if available.
+        
+        Args:
+            info (str): Information message.
+            target (int): Target count for progress.
+            reset_counter (bool): Whether to reset the counter.
+            plus_step (int): Incremental step count.
+        """
+        if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
+            self.app_hooks.report_step(info=info, target=target, reset_counter=reset_counter, plus_step=plus_step)
+        else:
+            logger.debug(info)
+
+    def _stop_requested(self, logger_stop_message: str = "Stop requested by user") -> bool:
+        """Check if stop has been requested via app hooks.
+        
+        Args:
+            logger_stop_message (str): Message to log if stop is requested.
+            
+        Returns:
+            bool: True if stop requested, False otherwise.
+        """
+        if self.app_hooks and callable(getattr(self.app_hooks, "stop_requested", None)):
+            if self.app_hooks.stop_requested():
+                if logger_stop_message:
+                    logger.info(logger_stop_message)
+                return True
+        return False
