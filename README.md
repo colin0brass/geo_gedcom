@@ -52,7 +52,8 @@ pip install ged4py rapidfuzz unidecode pycountry pycountry-convert bpemb pyyaml
 ### Geocoding & Location
 - `Location`, `LatLon`: Geocoding and location utilities.
 - `FuzzyAddressBook`: Place/address management.
-- `GeoCache`, `Geocode`: Geocoding cache and lookup utilities.
+- `GeoCache`, `Geocode`: Geocoding cache and lookup utilities with support for cache-only mode.
+  - **Cache-only mode**: When enabled, the geocoder uses only cached results without making network requests. Failed lookup attempts are not retried, and the cache file is not modified, ensuring true read-only behavior.
 - `geo_config`: Country/continent configuration and mapping.
 
 ### Data Processing

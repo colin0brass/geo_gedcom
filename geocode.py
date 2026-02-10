@@ -92,7 +92,7 @@ class Geocode:
         self.get_continent_for_country_code = geo_config.get_continent_for_country_code
         self.get_place_and_countrycode = geo_config.get_place_and_countrycode
 
-        self.geo_cache = GeoCache(cache_file, self.always_geocode, alt_place_file_path, file_geo_cache_path,
+        self.geo_cache = GeoCache(cache_file, self.always_geocode, self.cache_only, alt_place_file_path, file_geo_cache_path,
                                   self.days_between_retrying_failed_lookups)
         user_agent = geocode_settings.get('user_agent', "gedcom_geocoder")
         self.geolocator = Nominatim(user_agent=user_agent)
@@ -108,7 +108,11 @@ class Geocode:
     def save_geo_cache(self) -> None:
         """
         Save address cache to disk if applicable.
+        Skips saving in cache_only mode to avoid updating timestamps.
         """
+        if self.cache_only:
+            logger.debug("Skipping cache save in cache_only mode")
+            return
         if self.geo_cache.location_cache_file:
             self.geo_cache.save_geo_cache()
 

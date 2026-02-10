@@ -197,6 +197,7 @@ class GeoCache:
         self,
         cache_file: str,
         always_geocode: bool,
+        cache_only: bool = False,
         alt_addr_file: Optional[Path] = None,
         file_geo_cache_path: Optional[Path] = None,
         days_between_retrying_failed_geocodes: int = 7
@@ -207,12 +208,14 @@ class GeoCache:
         Args:
             cache_file (str): Path to the cache CSV file.
             always_geocode (bool): If True, ignore cache and always geocode.
+            cache_only (bool): If True, only use cache and never retry failed lookups.
             alt_addr_file (Optional[Path]): Path to alternative address file.
             file_geo_cache_path (Optional[Path]): Path to per-file geo cache.
             days_between_retrying_failed_geocodes: int = 7
         """
         self.location_cache_file = cache_file
         self.always_geocode = always_geocode
+        self.cache_only = cache_only
         self.geo_cache: Dict[str, GeoCacheEntry] = {}
         self.alt_addr_cache: Dict[str, GeoCacheAltAddrEntry] = {}
         self.file_geo_cache_path = file_geo_cache_path
@@ -352,7 +355,8 @@ class GeoCache:
         cache_entry: Optional[GeoCacheEntry] = self.geo_cache.get(address_lower)
         if cache_entry:
             if cache_entry.no_result:
-                if self._should_retry_failed_geocode(cache_entry):
+                # In cache_only mode, never retry failed lookups
+                if not self.cache_only and self._should_retry_failed_geocode(cache_entry):
                     logger.debug(f"Retrying geocode for previously failed address: {address}")
                     del self.geo_cache[address_lower]
                     return use_addr_name, None
