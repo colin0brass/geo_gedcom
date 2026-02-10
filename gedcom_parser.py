@@ -404,11 +404,14 @@ class GedcomParser:
             for child in record.sub_tags('CHIL'):
                 if child.xref_id in people:
                     if people[child.xref_id]:
+                        # Cache sub_tag results to avoid calling twice (Windows compatibility)
+                        husb_record = record.sub_tag('HUSB')
+                        wife_record = record.sub_tag('WIFE')
                         for partner_person in partner_person_list:
-                            if record.sub_tag('HUSB') and partner_person.xref_id == record.sub_tag('HUSB').xref_id:
+                            if husb_record and partner_person.xref_id == husb_record.xref_id:
                                 people[child.xref_id].father = partner_person.xref_id
                                 partner_person.children.append(child.xref_id)
-                            if record.sub_tag('WIFE') and partner_person.xref_id == record.sub_tag('WIFE').xref_id:
+                            if wife_record and partner_person.xref_id == wife_record.xref_id:
                                 people[child.xref_id].mother = partner_person.xref_id
                                 partner_person.children.append(child.xref_id)
             if self._stop_requested():
