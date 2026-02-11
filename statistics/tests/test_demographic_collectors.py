@@ -145,6 +145,69 @@ def test_births_collector():
     assert births_stats['latest_birth_year'] == 1970
 
 
+def test_births_collector_filters_implausible_dates():
+    """Test BirthsCollector filters out implausibly early dates."""
+    people = [
+        MockPerson('Ancient /Person/', 'M', 1),  # Year 1 AD - should be filtered
+        MockPerson('Medieval /Person/', 'F', 800),  # Year 800 - should be filtered
+        MockPerson('Recent /Person/', 'M', 1800),  # Year 1800 - should be kept
+        MockPerson('Modern /Person/', 'F', 1950),  # Year 1950 - should be kept
+    ]
+    
+    collector = BirthsCollector()
+    stats = collector.collect(people, Stats())
+    
+    births_stats = stats.get_category('births')
+    
+    # earliest_birth_year should be 1800 (filtered out 1 and 800)
+    assert births_stats['earliest_birth_year'] == 1800
+    # latest_birth_year should still include all dates
+    assert births_stats['latest_birth_year'] == 1950
+
+
+def test_births_collector_no_credible_dates():
+    """Test BirthsCollector when all dates are implausible."""
+    people = [
+        MockPerson('Ancient /One/', 'M', 1),  # Year 1 AD
+        MockPerson('Ancient /Two/', 'F', 500),  # Year 500
+    ]
+    
+    collector = BirthsCollector()
+    stats = collector.collect(people, Stats())
+    
+    births_stats = stats.get_category('births')
+    
+    # Should not have earliest_birth_year key if all dates filtered
+    assert 'earliest_birth_year' not in births_stats
+    # Should still have latest_birth_year
+    assert births_stats['latest_birth_year'] == 500
+
+
+def test_births_collector_custom_threshold():
+    """Test BirthsCollector with custom earliest_credible_birth_year threshold."""
+    people = [
+        MockPerson('Medieval /Person/', 'M', 800),   # Year 800
+        MockPerson('Renaissance /Person/', 'F', 1400),  # Year 1400
+        MockPerson('Modern /Person/', 'M', 1900),    # Year 1900
+    ]
+    
+    # Test with threshold of 1500 (should filter out 800 and 1400)
+    collector = BirthsCollector(earliest_credible_birth_year=1500)
+    stats = collector.collect(people, Stats())
+    births_stats = stats.get_category('births')
+    
+    assert births_stats['earliest_birth_year'] == 1900
+    assert births_stats['latest_birth_year'] == 1900
+    
+    # Test with threshold of 500 (should only filter out dates before 500)
+    collector_500 = BirthsCollector(earliest_credible_birth_year=500)
+    stats_500 = collector_500.collect(people, Stats())
+    births_stats_500 = stats_500.get_category('births')
+    
+    assert births_stats_500['earliest_birth_year'] == 800
+    assert births_stats_500['latest_birth_year'] == 1900
+
+
 def test_all_collectors_integration():
     """Test all collectors together."""
     people = [

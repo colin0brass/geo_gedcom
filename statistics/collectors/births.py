@@ -51,8 +51,15 @@ class BirthsCollector(StatisticsCollector):
         - Birth decades and centuries
         - Zodiac signs distribution
         - Seasonal patterns
+        - Birth year ranges (filters out implausibly early dates)
+    
+    Attributes:
+        earliest_credible_birth_year: Minimum year to consider credible (default: 1000).
+            Years before this are filtered out as data entry errors or historically
+            implausible dates. Can be configured via statistics_options in YAML.
     """
     collector_id: str = "births"
+    earliest_credible_birth_year: int = 1000
     
     def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect birth statistics."""
@@ -148,7 +155,11 @@ class BirthsCollector(StatisticsCollector):
         
         # Birth years range
         if birth_years:
-            stats.add_value('births', 'earliest_birth_year', min(birth_years))
+            # Filter out implausibly early dates using configured threshold
+            credible_years = [y for y in birth_years if y >= self.earliest_credible_birth_year]
+            
+            if credible_years:
+                stats.add_value('births', 'earliest_birth_year', min(credible_years))
             stats.add_value('births', 'latest_birth_year', max(birth_years))
             stats.add_value('births', 'birth_year_span', max(birth_years) - min(birth_years))
         

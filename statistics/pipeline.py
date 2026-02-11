@@ -3,7 +3,7 @@ Pipeline for running statistics collectors.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Type
@@ -22,9 +22,11 @@ class StatisticsConfig:
     
     Attributes:
         collectors: Dict of collector_id -> enabled status
+        statistics_options: Dict of option_name -> value for statistics collectors
         config_file: Path to YAML config file (optional)
     """
     collectors: Dict[str, bool] = field(default_factory=dict)
+    statistics_options: Dict[str, Any] = field(default_factory=dict)
     config_file: Optional[Path] = None
     
     def __post_init__(self) -> None:
@@ -37,7 +39,8 @@ class StatisticsConfig:
         Load configuration from YAML file.
         
         Reads the 'statistics' section from the YAML file and extracts
-        collector enable/disable settings.
+        collector enable/disable settings. Also loads 'statistics_options'
+        for configuring collector behavior.
         """
         try:
             with open(self.config_file, 'r') as f:
@@ -51,6 +54,15 @@ class StatisticsConfig:
                         self.collectors[collector_id] = settings.get('enabled', True)
                     elif isinstance(settings, bool):
                         self.collectors[collector_id] = settings
+                
+                # Load statistics_options - extract defaults from option definitions
+                raw_statistics_options = data.get('statistics_options', {})
+                for option_name, option_spec in raw_statistics_options.items():
+                    if isinstance(option_spec, dict) and 'default' in option_spec:
+                        self.statistics_options[option_name] = option_spec['default']
+                    else:
+                        # Option specified as direct value
+                        self.statistics_options[option_name] = option_spec
                         
                 logger.info(f"Loaded statistics config from {self.config_file}")
         except Exception as e:
@@ -68,6 +80,19 @@ class StatisticsConfig:
         """
         return self.collectors.get(collector_id, True)
     
+    def get_option(self, option_name: str, default: Any = None) -> Any:
+        """
+        Get a statistics option value.
+        
+        Args:
+            option_name: Name of the option to retrieve
+            default: Default value if option not found
+            
+        Returns:
+            Option value, or default if not found
+        """
+        return self.statistics_options.get(option_name, default)
+    
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> StatisticsConfig:
         """
@@ -76,12 +101,17 @@ class StatisticsConfig:
         Useful for testing and programmatic configuration.
         
         Args:
-            data: Dictionary with 'collectors' key mapping collector_id to enabled status
+            data: Dictionary with optional keys:
+                - 'collectors': mapping collector_id to enabled status
+                - 'statistics_options': mapping option_name to value
             
         Returns:
             StatisticsConfig instance
         """
-        return cls(collectors=data.get('collectors', {}))
+        return cls(
+            collectors=data.get('collectors', {}),
+            statistics_options=data.get('statistics_options', {})
+        )
 
 
 @dataclass
@@ -113,13 +143,25 @@ class StatisticsPipeline:
         Load all registered collectors with configuration applied.
         
         Instantiates each collector from the registry and applies the
-        enabled/disabled setting from configuration.
+        enabled/disabled setting and any matching statistics_options
+        from configuration.
         """
         registry = get_collector_registry()
         for collector_id, collector_cls in registry.items():
             enabled = self.config.is_enabled(collector_id)
             try:
-                collector = collector_cls(enabled=enabled, app_hooks=self.app_hooks)
+                # Build kwargs with enabled and app_hooks
+                kwargs = {'enabled': enabled, 'app_hooks': self.app_hooks}
+                
+                # Add any matching statistics_options
+                # Check which fields the collector has and pass matching config values
+                collector_fields = {f.name for f in fields(collector_cls)}
+                for option_name, option_value in self.config.statistics_options.items():
+                    if option_name in collector_fields:
+                        kwargs[option_name] = option_value
+                        logger.debug(f"Passing config option {option_name}={option_value} to {collector_id}")
+                
+                collector = collector_cls(**kwargs)
                 self.collectors.append(collector)
                 logger.debug(f"Loaded collector: {collector_id} (enabled={enabled})")
             except Exception as e:

@@ -97,6 +97,39 @@ class TestStatisticsPipeline:
         
         # Collector should be disabled
         assert stats.get_value('test', 'count') is None
+    
+    def test_pipeline_passes_statistics_options_to_collectors(self):
+        """Test that statistics_options are passed to collectors that accept them."""
+        from geo_gedcom.statistics.collectors.births import BirthsCollector
+        from geo_gedcom.statistics.tests.test_demographic_collectors import MockPerson
+        
+        people = [
+            MockPerson('Medieval /Person/', 'M', 800),
+            MockPerson('Modern /Person/', 'F', 1900),
+        ]
+        
+        # Create config with custom earliest_credible_birth_year
+        config = StatisticsConfig(
+            statistics_options={'earliest_credible_birth_year': 1500}
+        )
+        
+        # Create pipeline with BirthsCollector
+        pipeline = StatisticsPipeline(config=config)
+        
+        # Find the births collector and verify it has the custom threshold
+        births_collector = next(
+            (c for c in pipeline.collectors if isinstance(c, BirthsCollector)),
+            None
+        )
+        assert births_collector is not None
+        assert births_collector.earliest_credible_birth_year == 1500
+        
+        # Run pipeline and verify filtering works with custom threshold
+        stats = pipeline.run(people)
+        births_stats = stats.get_category('births')
+        
+        # Only 1900 should pass the 1500 threshold
+        assert births_stats['earliest_birth_year'] == 1900
 
 
 @pytest.fixture

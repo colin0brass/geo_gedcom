@@ -86,6 +86,32 @@ config = StatisticsConfig(config_file='config.yaml')
 pipeline = StatisticsPipeline(config=config)
 ```
 
+### Statistics Options
+
+The `statistics_options` section in the configuration file allows you to customize the behavior of individual collectors:
+
+```yaml
+# gedcom_options.yaml or config.yaml
+statistics_options:
+  earliest_credible_birth_year: {type: 'int', default: 1000}
+```
+
+**Available options:**
+
+- **`earliest_credible_birth_year`** (int, default: 1000): Minimum year to consider as a credible birth year for statistics. Years before this threshold are filtered out as data entry errors or historically implausible dates. This affects the `earliest_birth_year` metric in the Executive Summary.
+  - Use `1000` for general genealogy (filters medieval and ancient data errors)
+  - Use `500-800` for legitimate medieval European genealogy
+  - Use `1500-1700` for modern datasets where older dates are unlikely
+
+```python
+# Load configuration with statistics_options
+config = StatisticsConfig(config_file='gedcom_options.yaml')
+pipeline = StatisticsPipeline(config=config)
+
+# Statistics options are automatically passed to collectors that accept them
+stats = pipeline.run(people)
+```
+
 ## Built-in Collectors
 
 The statistics module includes 14 built-in collectors organized into 4 categories:
@@ -209,7 +235,12 @@ Analyzes birth patterns and temporal trends.
 - Birth seasons
 - Zodiac sign distribution
 - Birth decades and centuries
+- `earliest_birth_year`: Earliest credible birth year (filtered by `earliest_credible_birth_year` threshold)
+- `latest_birth_year`: Latest birth year in dataset
 - Most/least common birth months and zodiac signs
+
+**Configuration:**
+- `earliest_credible_birth_year` (default: 1000): Filters out birth years before this threshold to exclude data entry errors or historically implausible dates. Can be configured via `statistics_options` in the configuration file.
 
 ### Temporal Collectors (2)
 

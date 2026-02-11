@@ -183,3 +183,46 @@ def test_geocache_entry_as_dict():
     assert d['no_result'] == 'False'
     assert d['timestamp'] == '1234567890.5'
     assert d['used'] == '2'
+
+def test_geocache_cache_only_no_retry_failed(tmp_path):
+    """Test that cache_only mode does not retry failed lookups."""
+    import time
+    cache_file = tmp_path / "geocache.csv"
+    
+    # Create cache with a failed entry with old timestamp (should normally retry)
+    gc1 = GeoCache(str(cache_file), always_geocode=False, cache_only=False, days_between_retrying_failed_geocodes=0)
+    gc1.add_no_result_entry('Failed Place')
+    # Set timestamp to old value to trigger retry logic
+    gc1.geo_cache['failed place'].timestamp = time.time() - 10  # 10 seconds ago (older than retry threshold)
+    gc1.save_geo_cache()
+    
+    # Load in cache_only mode - should NOT retry the failed lookup
+    gc2 = GeoCache(str(cache_file), always_geocode=False, cache_only=True, days_between_retrying_failed_geocodes=0)
+    use_addr, cache_entry = gc2.lookup_geo_cache_entry('Failed Place')
+    
+    # Should still return the failed entry, not trigger a retry
+    assert cache_entry is not None
+    assert cache_entry.no_result is True
+    # Verify the entry wasn't deleted from cache (which would happen if retry was triggered)
+    assert 'failed place' in gc2.geo_cache
+
+def test_geocache_non_cache_only_retries_failed(tmp_path):
+    """Test that non-cache_only mode DOES retry old failed lookups."""
+    import time
+    cache_file = tmp_path / "geocache.csv"
+    
+    # Create cache with a failed entry with old timestamp
+    gc1 = GeoCache(str(cache_file), always_geocode=False, cache_only=False, days_between_retrying_failed_geocodes=0)
+    gc1.add_no_result_entry('Failed Place')
+    # Set timestamp to old value to trigger retry logic
+    gc1.geo_cache['failed place'].timestamp = time.time() - 10  # 10 seconds ago (older than retry threshold)
+    gc1.save_geo_cache()
+    
+    # Load in normal mode (not cache_only) - SHOULD retry the failed lookup
+    gc2 = GeoCache(str(cache_file), always_geocode=False, cache_only=False, days_between_retrying_failed_geocodes=0)
+    use_addr, cache_entry = gc2.lookup_geo_cache_entry('Failed Place')
+    
+    # Should trigger retry, so cache_entry should be None (entry deleted to allow retry)
+    assert cache_entry is None
+    # Verify the entry was deleted from cache (which happens when retry is triggered)
+    assert 'failed place' not in gc2.geo_cache
