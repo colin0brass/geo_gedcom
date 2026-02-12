@@ -108,7 +108,7 @@ def export_results(stats, enriched_people):
     """Export statistics and enriched data."""
     
     # Export statistics
-    with open('statistics.json', 'w') as f:
+    with open('statistics.json', 'w', encoding='utf-8') as f:
         json.dump(stats.to_dict(), f, indent=2)
     
     # Export enriched data summary
@@ -127,7 +127,7 @@ def export_results(stats, enriched_people):
             ]
         }
     
-    with open('enriched_data.json', 'w') as f:
+    with open('enriched_data.json', 'w', encoding='utf-8') as f:
         json.dump(enriched_summary, f, indent=2)
 
 

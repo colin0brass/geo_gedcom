@@ -24,7 +24,7 @@ def test_geolocated_gedcom_basic_usage(tmp_path):
     """Test Gedcom initialization with a minimal valid GEDCOM file."""
     gedcom_content = "0 HEAD\n1 SOUR test\n0 TRLR\n"
     gedcom_file = tmp_path / "test.ged"
-    gedcom_file.write_text(gedcom_content)
+    gedcom_file.write_text(gedcom_content, encoding='utf-8')
     try:
         g = Gedcom(str(gedcom_file))
         assert hasattr(g, "people") or hasattr(g, "families")  # Adjust as appropriate

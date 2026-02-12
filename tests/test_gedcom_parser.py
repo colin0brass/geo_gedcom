@@ -18,7 +18,7 @@ def minimal_gedcom_file(tmp_path):
         "0 TRLR\n"
     )
     file_path = tmp_path / "test.ged"
-    file_path.write_text(content)
+    file_path.write_text(content, encoding='utf-8')
     return file_path
 
 def test_gedcom_parser_init_none():

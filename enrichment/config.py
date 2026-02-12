@@ -50,7 +50,7 @@ class EnrichmentConfig:
             )
         
         try:
-            with open(yaml_path, 'r') as f:
+            with open(yaml_path, 'r', encoding='utf-8') as f:
                 config_dict = yaml.safe_load(f) or {}
             
             # Set fields from YAML
@@ -77,7 +77,7 @@ class EnrichmentConfig:
             raise FileNotFoundError(f"Configuration file not found: {yaml_path}")
         
         try:
-            with open(yaml_path, 'r') as f:
+            with open(yaml_path, 'r', encoding='utf-8') as f:
                 config_dict = yaml.safe_load(f) or {}
         except yaml.YAMLError as e:
             raise ValueError(f"Error parsing {yaml_path}: {e}")
@@ -110,7 +110,7 @@ class EnrichmentConfig:
                 # Try to get from default config.yaml
                 default_yaml = Path(__file__).parent / "config.yaml"
                 if default_yaml.exists():
-                    with open(default_yaml, 'r') as f:
+                    with open(default_yaml, 'r', encoding='utf-8') as f:
                         default_dict = yaml.safe_load(f) or {}
                     if key in default_dict:
                         object.__setattr__(instance, key, default_dict[key])

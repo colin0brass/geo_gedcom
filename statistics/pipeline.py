@@ -43,7 +43,7 @@ class StatisticsConfig:
         for configuring collector behavior.
         """
         try:
-            with open(self.config_file, 'r') as f:
+            with open(self.config_file, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f) or {}
                 statistics_config = data.get('statistics', {})
                 
