@@ -78,12 +78,14 @@ class GeolocatedGedcom(Gedcom):
         self._report_step("Reading address book ...", target=0, reset_counter=True)
         self.read_full_address_book()
 
-        self._report_step("Geolocating addresses ...") # reset_counter=True
+        self._report_step("Geolocating addresses", target=0, reset_counter=True)
         self.geolocate_all(cache_only)
        
         self._report_step("Locating People", target=self.gedcom_parser.num_people, reset_counter=True)
         self.geolocate_people()
 
+        # Final completion message
+        self._report_step("Geolocation complete", target=0, reset_counter=True)
         self._update_key_value(key="parsed", value=True)
 
     def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
@@ -170,7 +172,7 @@ class GeolocatedGedcom(Gedcom):
             
             # Report progress at intervals
             if idx % self.geolocate_all_logger_interval == 0 or idx == num_places:
-                self._report_step(plus_step=self.geolocate_all_logger_interval)
+                self._report_step(plus_step=self.geolocate_all_logger_interval, info=progress_message)
             
             # Save cache periodically if requested
             if save_cache_interval > 0 and idx % save_cache_interval == 0:
@@ -245,9 +247,13 @@ class GeolocatedGedcom(Gedcom):
         Geolocate all life events for all people using the iter_life_events generator.
         """
         exit_requested: bool = False
-        for person in self.people.values():
-            if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
-                self.app_hooks.report_step(info=f"Reviewing {getattr(person, 'name', '-Unknown-')}")
+        total_people = len(self.people)
+        for idx, person in enumerate(self.people.values(), 1):
+            # Report progress every 100 people or at the end
+            if idx % 100 == 0 or idx == total_people:
+                person_name = getattr(person, 'name', '-Unknown-')
+                self._report_step(info=f"Locating people: {person_name}", plus_step=100 if idx % 100 == 0 else idx % 100)
+            
             for event in person.iter_life_events():
                 self.__geolocate_event(event)
                 if self._stop_requested(logger_stop_message="Locating people process stopped by user."):
@@ -255,6 +261,9 @@ class GeolocatedGedcom(Gedcom):
                     break
             if exit_requested:
                 break
+        
+        if not exit_requested:
+            logger.info(f"Geolocated events for {total_people} people.")
 
     def __geolocate_event(self, event: LifeEvent) -> LifeEvent:
         """
