@@ -66,6 +66,14 @@ class GeolocatedGedcom(Gedcom):
         """
         super().__init__(gedcom_file=gedcom_file, app_hooks=app_hooks, enable_enrichment=enable_enrichment, enable_statistics=enable_statistics)
 
+        # Skip remaining initialization if parsing was stopped
+        if self.gedcom_parser._stop_was_requested:
+            logger.info("Skipping address book and geolocation due to stop request during parsing")
+            self.address_book = None
+            self.geo_config = None
+            self.geocoder = None
+            return
+
         self.address_book = AddressBook(fuzz=fuzz)
         self.app_hooks = app_hooks
 
@@ -85,8 +93,10 @@ class GeolocatedGedcom(Gedcom):
         self._report_step("Reading address book ...", target=total_records, reset_counter=True)
         self.read_full_address_book()
 
-        self._report_step("Geolocating addresses", target=0, reset_counter=True)
-        self.geolocate_all(cache_only)
+        # Skip geolocation if address book reading was stopped
+        if not self._stop_requested():
+            self._report_step("Geolocating addresses", target=0, reset_counter=True)
+            self.geolocate_all(cache_only)
 
         self._report_step("Locating People", target=self.gedcom_parser.num_people, reset_counter=True)
         self.geolocate_people()

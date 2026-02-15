@@ -47,6 +47,7 @@ class GedcomParser:
         'has_photo_tag',
         'has_obje_tag',
         'only_use_photo_tags',
+        '_stop_was_requested',
     ]
 
     LINE_RE = re.compile(
@@ -69,6 +70,7 @@ class GedcomParser:
         self.simplify_range_policy = 'first'  # 'first' or 'approximate'
         self.num_people = 0
         self.num_families = 0
+        self._stop_was_requested = False
 
         self.gedcom_file = self._check_fix_gedcom(gedcom_file)
         self.gedcom_file = self._check_convert_legacy_gedcom(self.gedcom_file)
@@ -114,7 +116,7 @@ class GedcomParser:
                     logger.info(logger_stop_message)
                 return True
         return False
-    
+
     def _add_time_reference(self, gedcom_date) -> None:
         """
         Add a time reference via app hooks if available. (Private method)
@@ -143,7 +145,7 @@ class GedcomParser:
         else:
             os.remove(temp_path)
         return temp_path if changed else input_path
-    
+
     def _check_convert_legacy_gedcom(self, input_path: Path) -> Path:
         """Converts Legacy GEDCOM to GEDCOM 5.5 if needed."""
         self._report_step("Check and convert if Legacy GEDCOM ...", plus_step=0)
@@ -181,7 +183,7 @@ class GedcomParser:
         except IOError as e:
             logger.error(f"Failed to check GEDCOM file {input_path} for {tag} tags: {e}")
         return has_tag
-    
+
     def _check_photo_tags(self, input_path: Path) -> tuple[bool, bool]:
         """Check if GEDCOM file has photo tags (_PHOTO or OBJE)."""
         has_photo_tag = self._check_if_tag_used(input_path, "_PHOTO")
@@ -270,7 +272,7 @@ class GedcomParser:
 
         # Extract residences
         home_location_tags = ('RESI', 'ADDR', 'OCCU', 'CENS', 'EDUC')
-        other_location_tags = ('CHR', 'BAPM', 'BASM', 'BAPL', 'BARM', 'IMMI', 'NATU', 'ORDN','ORDI', 'RETI', 
+        other_location_tags = ('CHR', 'BAPM', 'BASM', 'BAPL', 'BARM', 'IMMI', 'NATU', 'ORDN','ORDI', 'RETI',
                              'EVEN',  'CEME', 'CREM', 'FACT' )
         person.add_events('residence', self._get_event_list(record, home_location_tags + other_location_tags))
 
@@ -311,7 +313,7 @@ class GedcomParser:
                 photos.extend(files)
                 preferred_photos.extend(preferred_files)
         return photos, preferred_photos
-    
+
     def _extract_photo(self, obj: Record) -> Tuple[List[str], List[str]]:
         """
         Extracts all valid photo file paths from a GEDCOM record's OBJE tags.
@@ -338,7 +340,7 @@ class GedcomParser:
                     preferred_photos.append(file_value)
 
         return photos, preferred_photos
-    
+
     def _create_people(self, records0) -> Dict[str, Person]:
         """
         Creates a dictionary of Person objects from records.
@@ -353,6 +355,7 @@ class GedcomParser:
         for idx, record in enumerate(records0('INDI')):
             people[record.xref_id] = self.__create_person(record)
             if self._stop_requested():
+                self._stop_was_requested = True
                 break
             if idx % 100 == 0:
                 self._report_step(plus_step=100)
@@ -415,6 +418,7 @@ class GedcomParser:
                                 people[child.xref_id].mother = partner_person.xref_id
                                 partner_person.children.append(child.xref_id)
             if self._stop_requested():
+                self._stop_was_requested = True
                 break
             if idx % 100 == 0:
                 self._report_step(plus_step=100)
@@ -459,14 +463,17 @@ class GedcomParser:
         self._report_step("Counting people", target=0)
         self.num_people = 0
         self.num_families = 0
-        self._fast_count()
+        self._stop_was_requested = False
         try:
             # Single pass: build people and then addresses
             with GedcomReader(str(self.gedcom_file)) as g:
                 records = g.records0
                 self._report_step("Loading people from GED", target=self.num_people, reset_counter=True, plus_step=0)
                 self.people = self._create_people(records)
-                self._report_step("Linking families from GED", target=self.num_families, reset_counter=True, plus_step=0)
+                # Only continue to link families if not stopped
+                if not self._stop_was_requested:
+                    self._report_step("Linking families from GED", target=self.num_families, reset_counter=True, plus_step=0)
+                    self._report_step("Linking families from GED", target=self.num_families, reset_counter=True, plus_step=0)
                 self.people = self._add_marriages(self.people, records)
 
         except Exception as e:
@@ -482,11 +489,13 @@ class GedcomParser:
         address_list = []
         seen = set()
         record_count = 0
+        stop_requested = False
         try:
             with GedcomReader(str(self.gedcom_file)) as g:
                 # Individuals: collect PLAC under any event (BIRT/DEAT/BAPM/MARR/etc.)
                 for indi in g.records0("INDI"):
                     if self._stop_requested(logger_stop_message="Reading address book stopped by user."):
+                        stop_requested = True
                         break
                     record_count += 1
                     if record_count % 100 == 0:
@@ -499,30 +508,33 @@ class GedcomParser:
                                 address_list.append(place)
                                 seen.add(place)
 
-                # Families: marriage/divorce places, etc.
-                for fam in g.records0("FAM"):
-                    if self._stop_requested(logger_stop_message="Reading address book stopped by user."):
-                        break
-                    record_count += 1
-                    if record_count % 100 == 0:
-                        self._report_step(plus_step=100)
-                    for ev in fam.sub_records:
-                        plac = ev.sub_tag_value("PLAC")
-                        if plac:
-                            place = plac.strip()
-                            if place and place not in seen:
-                                address_list.append(place)
-                                seen.add(place)
-                
-                # Report any remaining progress
-                remainder = record_count % 100
-                if remainder > 0:
-                    self._report_step(plus_step=remainder)
+                # Families: marriage/divorce places, etc. (only if not stopped)
+                if not stop_requested:
+                    for fam in g.records0("FAM"):
+                        if self._stop_requested(logger_stop_message="Reading address book stopped by user."):
+                            stop_requested = True
+                            break
+                        record_count += 1
+                        if record_count % 100 == 0:
+                            self._report_step(plus_step=100)
+                        for ev in fam.sub_records:
+                            plac = ev.sub_tag_value("PLAC")
+                            if plac:
+                                place = plac.strip()
+                                if place and place not in seen:
+                                    address_list.append(place)
+                                    seen.add(place)
+
+                # Report any remaining progress (only if not stopped)
+                if not stop_requested:
+                    remainder = record_count % 100
+                    if remainder > 0:
+                        self._report_step(plus_step=remainder)
 
         except Exception as e:
             logger.error(f"Error extracting places from GEDCOM file '{self.gedcom_file}': {e}")
         return address_list
-    
+
     def gedcom_writer(self, people: Dict[str, Person], output_filename: str, output_folder: Path, photo_subdir: Union[Path, None]):
         """
         Write a GEDCOM file from a dictionary of Person objects.

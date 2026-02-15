@@ -99,6 +99,13 @@ class Gedcom:
         )
         self.people = self.gedcom_parser.people
 
+        # Skip enrichment and statistics if parsing was stopped
+        if self.gedcom_parser._stop_was_requested:
+            logger.info("Skipping enrichment and statistics due to stop request during parsing")
+            self.enrichment = None
+            self.statistics = None
+            return
+
         num_people = len(self.people)
 
         # Enrichment (optional)
@@ -112,13 +119,16 @@ class Gedcom:
             self.enrichment = None
             logger.info("Enrichment disabled by configuration")
 
-        # Statistics (optional)
-        if enable_statistics:
+        # Statistics (optional) - skip if enrichment was stopped
+        if enable_statistics and not self._stop_requested():
             self._report_step("Statistics", target=num_people, reset_counter=True, plus_step=0)
             self.statistics = Statistics(gedcom_parser=self.gedcom_parser, app_hooks=self.app_hooks)
         else:
             self.statistics = None
-            logger.info("Statistics disabled by configuration")
+            if not enable_statistics:
+                logger.info("Statistics disabled by configuration")
+            else:
+                logger.info("Statistics skipped due to stop request")
 
     def close(self):
         """
