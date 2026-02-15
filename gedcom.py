@@ -119,8 +119,8 @@ class Gedcom:
             self.enrichment = None
             logger.info("Enrichment disabled by configuration")
 
-        # Statistics (optional) - skip if enrichment was stopped
-        if enable_statistics and not self._stop_requested():
+        # Statistics (optional) - skip if stop was requested during parsing or enrichment
+        if enable_statistics and not self.gedcom_parser._stop_was_requested:
             self._report_step("Statistics", target=num_people, reset_counter=True, plus_step=0)
             self.statistics = Statistics(gedcom_parser=self.gedcom_parser, app_hooks=self.app_hooks)
         else:
