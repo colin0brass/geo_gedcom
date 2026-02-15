@@ -199,12 +199,18 @@ class GeolocatedGedcom(Gedcom):
             return
 
         # Process cached places without geolocation
-        if self._process_address_book_with_progress(
-            cached_places_without_geolocation,
-            "Processing cached places without geolocation ...",
-            force_none_location=True
-        ):
-            return
+        # Temporarily enable cache_only to prevent retrying failed geocodes
+        original_cache_only = self.geocoder.cache_only
+        self.geocoder.cache_only = True
+        try:
+            if self._process_address_book_with_progress(
+                cached_places_without_geolocation,
+                "Processing cached places without geolocation ...",
+                force_none_location=True
+            ):
+                return
+        finally:
+            self.geocoder.cache_only = original_cache_only
 
         # Process non-cached places if not in cache-only mode
         if cache_only:
