@@ -327,6 +327,7 @@ Analyzes family relationships from a focus person's perspective using graph trav
 - Distribution of people by steps away from focus person
 - Distribution by generation offset (positive for ancestors, negative for descendants)
 - Farthest ancestor/descendant (by steps and generation)
+- Total generations (calculated as generation span + 1, from earliest ancestor to latest descendant)
 - Lists of specific relationship types (parents, siblings, cousins, etc.)
 - Average steps to all relatives
 - Most distant relative by steps
