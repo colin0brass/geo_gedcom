@@ -146,8 +146,9 @@ class RelationshipPathCollector(StatisticsCollector):
             
             stats.add_value('relationship_path', 'oldest_generation', min(generation_distribution.keys()))
             stats.add_value('relationship_path', 'youngest_generation', max(generation_distribution.keys()))
-            stats.add_value('relationship_path', 'generation_span', 
-                           max(generation_distribution.keys()) - min(generation_distribution.keys()))
+            generation_span = max(generation_distribution.keys()) - min(generation_distribution.keys())
+            stats.add_value('relationship_path', 'generation_span', generation_span)
+            stats.add_value('relationship_path', 'total_generations', generation_span + 1)
         
         # Relationship types
         if relationship_types:
