@@ -481,10 +481,16 @@ class GedcomParser:
         """
         address_list = []
         seen = set()
+        record_count = 0
         try:
             with GedcomReader(str(self.gedcom_file)) as g:
                 # Individuals: collect PLAC under any event (BIRT/DEAT/BAPM/MARR/etc.)
                 for indi in g.records0("INDI"):
+                    if self._stop_requested(logger_stop_message="Reading address book stopped by user."):
+                        break
+                    record_count += 1
+                    if record_count % 100 == 0:
+                        self._report_step(plus_step=100, info=f"Scanning GEDCOM records for places: {record_count} processed")
                     for ev in indi.sub_records:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
@@ -495,6 +501,11 @@ class GedcomParser:
 
                 # Families: marriage/divorce places, etc.
                 for fam in g.records0("FAM"):
+                    if self._stop_requested(logger_stop_message="Reading address book stopped by user."):
+                        break
+                    record_count += 1
+                    if record_count % 100 == 0:
+                        self._report_step(plus_step=100, info=f"Scanning GEDCOM records for places: {record_count} processed")
                     for ev in fam.sub_records:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
@@ -502,6 +513,11 @@ class GedcomParser:
                             if place and place not in seen:
                                 address_list.append(place)
                                 seen.add(place)
+                
+                # Report any remaining progress
+                remainder = record_count % 100
+                if remainder > 0:
+                    self._report_step(plus_step=remainder, info=f"Scanning GEDCOM records for places: {record_count} processed")
 
         except Exception as e:
             logger.error(f"Error extracting places from GEDCOM file '{self.gedcom_file}': {e}")

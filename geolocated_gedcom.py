@@ -75,7 +75,9 @@ class GeolocatedGedcom(Gedcom):
         )
         cache_only = self.geo_config.get_geo_config('cache_only', False)
 
-        self._report_step("Reading address book ...", target=0, reset_counter=True)
+        # Set target for address book reading based on total records to scan
+        total_records = self.gedcom_parser.num_people + self.gedcom_parser.num_families
+        self._report_step("Reading address book ...", target=total_records, reset_counter=True)
         self.read_full_address_book()
 
         self._report_step("Geolocating addresses", target=0, reset_counter=True)
@@ -231,13 +233,17 @@ class GeolocatedGedcom(Gedcom):
         """
         super().read_full_address_list()
         num_addresses = len(self.address_list)
+        
+        # Reset counter for second phase: populating address book
+        self._report_step(f"Populating address book with {num_addresses} places", target=num_addresses, reset_counter=True)
+        
         num_addresses_existed = 0
         num_addresses_didnt_exist = 0
         for idx, place in enumerate(self.address_list):
             if self._stop_requested(logger_stop_message="Reading address book process stopped by user."):
                 break
-            if idx % 100 == 0:
-                self._report_step(plus_step=100, info=f"Read {idx} of {num_addresses}")
+            if idx > 0 and idx % 100 == 0:
+                self._report_step(plus_step=100, info=f"Added {idx} of {num_addresses} places to address book")
             if not self.address_book.get_address(place):
                 location = None
                 self.address_book.add_address(place, location)
@@ -245,6 +251,12 @@ class GeolocatedGedcom(Gedcom):
                 logger.debug(f"Added address to address book: `{place}`")
             else:
                 num_addresses_existed += 1
+        
+        # Report final progress
+        remainder = len(self.address_list) % 100
+        if remainder > 0:
+            self._report_step(plus_step=remainder, info=f"Added {len(self.address_list)} of {num_addresses} places to address book")
+        
         logger.info(f"Address book read completed: {num_addresses} addresses, {num_addresses_existed} already existed, {num_addresses_didnt_exist} added.")
         logger.info(f"Address book stats: {self.address_book.address_existed} addresses existed during lookups, {self.address_book.address_didnt_exist} did not exist.")
 
