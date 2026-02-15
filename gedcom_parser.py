@@ -490,7 +490,7 @@ class GedcomParser:
                         break
                     record_count += 1
                     if record_count % 100 == 0:
-                        self._report_step(plus_step=100, info=f"Scanning GEDCOM records for places: {record_count} processed")
+                        self._report_step(plus_step=100)
                     for ev in indi.sub_records:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
@@ -505,7 +505,7 @@ class GedcomParser:
                         break
                     record_count += 1
                     if record_count % 100 == 0:
-                        self._report_step(plus_step=100, info=f"Scanning GEDCOM records for places: {record_count} processed")
+                        self._report_step(plus_step=100)
                     for ev in fam.sub_records:
                         plac = ev.sub_tag_value("PLAC")
                         if plac:
@@ -517,7 +517,7 @@ class GedcomParser:
                 # Report any remaining progress
                 remainder = record_count % 100
                 if remainder > 0:
-                    self._report_step(plus_step=remainder, info=f"Scanning GEDCOM records for places: {record_count} processed")
+                    self._report_step(plus_step=remainder)
 
         except Exception as e:
             logger.error(f"Error extracting places from GEDCOM file '{self.gedcom_file}': {e}")

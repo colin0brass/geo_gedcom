@@ -243,7 +243,7 @@ class GeolocatedGedcom(Gedcom):
             if self._stop_requested(logger_stop_message="Reading address book process stopped by user."):
                 break
             if idx > 0 and idx % 100 == 0:
-                self._report_step(plus_step=100, info=f"Added {idx} of {num_addresses} places to address book")
+                self._report_step(plus_step=100)
             if not self.address_book.get_address(place):
                 location = None
                 self.address_book.add_address(place, location)
@@ -255,7 +255,7 @@ class GeolocatedGedcom(Gedcom):
         # Report final progress
         remainder = len(self.address_list) % 100
         if remainder > 0:
-            self._report_step(plus_step=remainder, info=f"Added {len(self.address_list)} of {num_addresses} places to address book")
+            self._report_step(plus_step=remainder)
         
         logger.info(f"Address book read completed: {num_addresses} addresses, {num_addresses_existed} already existed, {num_addresses_didnt_exist} added.")
         logger.info(f"Address book stats: {self.address_book.address_existed} addresses existed during lookups, {self.address_book.address_didnt_exist} did not exist.")
