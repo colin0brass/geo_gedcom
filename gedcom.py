@@ -89,7 +89,7 @@ class Gedcom:
         'enrichment',
         'statistics',
     ]
-    def __init__(self, gedcom_file: Path, only_use_photo_tags: bool = False, app_hooks: Optional['AppHooks'] = None) -> None:
+    def __init__(self, gedcom_file: Path, only_use_photo_tags: bool = False, app_hooks: Optional['AppHooks'] = None, enable_enrichment: bool = True, enable_statistics: bool = True) -> None:
         """Initialize the Gedcom handler and load people and places from the GEDCOM file."""
         self.app_hooks = app_hooks
         self.gedcom_parser = GedcomParser(
@@ -100,22 +100,32 @@ class Gedcom:
         self.people = self.gedcom_parser.people
 
         num_people = len(self.people)
-        self._report_step("Enrichment", target=num_people, reset_counter=True, plus_step=0)
 
-        self.enrichment = Enrichment(people=self.people, app_hooks=self.app_hooks)
-        enrichment_num_issues: int = len(self.enrichment.issues)
-        if enrichment_num_issues > 0:
-            logger.info(f"Enrichment completed with {enrichment_num_issues} issues found")
+        # Enrichment (optional)
+        if enable_enrichment:
+            self._report_step("Enrichment", target=num_people, reset_counter=True, plus_step=0)
+            self.enrichment = Enrichment(people=self.people, app_hooks=self.app_hooks)
+            enrichment_num_issues: int = len(self.enrichment.issues)
+            if enrichment_num_issues > 0:
+                logger.info(f"Enrichment completed with {enrichment_num_issues} issues found")
+        else:
+            self.enrichment = None
+            logger.info("Enrichment disabled by configuration")
 
-        self._report_step("Statistics", target=num_people, reset_counter=True, plus_step=0)
-        self.statistics = Statistics(gedcom_parser=self.gedcom_parser, app_hooks=self.app_hooks)
+        # Statistics (optional)
+        if enable_statistics:
+            self._report_step("Statistics", target=num_people, reset_counter=True, plus_step=0)
+            self.statistics = Statistics(gedcom_parser=self.gedcom_parser, app_hooks=self.app_hooks)
+        else:
+            self.statistics = None
+            logger.info("Statistics disabled by configuration")
 
     def close(self):
         """
         Close the GEDCOM parser and release any resources.
         """
         self.gedcom_parser.close()
-    
+
     def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
         """
         Report a step via app hooks if available. (Private method)
@@ -130,7 +140,7 @@ class Gedcom:
             self.app_hooks.report_step(info=info, target=target, reset_counter=reset_counter, plus_step=plus_step)
         else:
             logger.info(info)
-    
+
     def read_full_address_list(self) -> None:
         """
         Get all places from the GEDCOM file.
@@ -139,7 +149,7 @@ class Gedcom:
             List[str]: List of unique place names.
         """
         self.address_list = self.gedcom_parser.get_full_address_list()
-    
+
     def filter_generations(
         self,
         starting_person_id: str,
@@ -289,7 +299,7 @@ class Gedcom:
             str: The xref_id of the first person.
         """
         return next(iter(self.people))
-    
+
     def get_person_by_name(self, name: str, exact_match: bool = False) -> Optional[Person]:
         """
         Get a Person object by name.
@@ -306,7 +316,7 @@ class Gedcom:
             Optional[Person]: The matching Person object, or None if no match found.
         """
         search_name = name.lower().strip()
-        
+
         for person in self.people.values():
             if person.name:
                 person_name = person.name.lower()
@@ -316,9 +326,9 @@ class Gedcom:
                 else:
                     if search_name in person_name:
                         return person
-        
+
         return None
-        
+
     def export_people_with_photos(
         self,
         people: Dict[str, Person],

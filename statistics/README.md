@@ -2,6 +2,8 @@
 
 The statistics module provides aggregate statistical analysis of genealogical datasets. Unlike the enrichment module which modifies individual person records, the statistics module collects and analyzes data across the entire dataset without modifying it.
 
+> **Note**: When loading large GEDCOM files in the GUI application, statistics processing can be disabled via Configuration Options → Processing Options → "Enable statistics processing during GEDCOM load" to speed up loading. See the main README for details.
+
 ## Overview
 
 The statistics module is built around **collectors** - independent analysis components that gather specific types of statistics from your dataset. Collectors can analyze demographics, events, geographic distribution, and more.
@@ -345,21 +347,21 @@ from geo_gedcom.statistics import StatisticsCollector, register_collector, Stati
 @dataclass
 class MyCustomCollector(StatisticsCollector):
     """My custom statistics collector."""
-    
+
     collector_id: str = "my_custom"
-    
+
     def collect(self, people: Iterable[Any], existing_stats: Statistics) -> Statistics:
         stats = Statistics()
-        
+
         # Analyze people
         count = 0
         for person in people:
             count += 1
             # Your analysis logic here
-        
+
         # Add statistics
         stats.add_value('custom', 'person_count', count)
-        
+
         return stats
 ```
 
@@ -370,25 +372,25 @@ class MyCustomCollector(StatisticsCollector):
 @dataclass
 class FamilyStatsCollector(StatisticsCollector):
     """Analyzes family structure statistics."""
-    
+
     collector_id: str = "family_stats"
-    
+
     def collect(self, people: Iterable[Any], existing_stats: Statistics) -> Statistics:
         stats = Statistics()
-        
+
         children_counts = []
-        
+
         for person in people:
             # Count children
             if hasattr(person, 'children'):
                 num_children = len(list(person.children))
                 children_counts.append(num_children)
-        
+
         if children_counts:
             avg_children = sum(children_counts) / len(children_counts)
             stats.add_value('family', 'average_children', round(avg_children, 2))
             stats.add_value('family', 'max_children', max(children_counts))
-        
+
         return stats
 ```
 

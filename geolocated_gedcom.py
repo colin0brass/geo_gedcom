@@ -33,7 +33,7 @@ class GeolocatedGedcom(Gedcom):
         'cache_only'
     ]
     geolocate_all_logger_interval = 20
-    
+
     def __init__(
             self,
             gedcom_file: Path,
@@ -43,7 +43,9 @@ class GeolocatedGedcom(Gedcom):
             geo_config_updates: Optional[Dict] = None,
             file_geo_cache_path: Optional[Path] = None,
             app_hooks: Optional['AppHooks'] = None,
-            fuzz: bool = False
+            fuzz: bool = False,
+            enable_enrichment: bool = True,
+            enable_statistics: bool = True
     ):
         """
         Initialize GeolocatedGedcom.
@@ -58,8 +60,11 @@ class GeolocatedGedcom(Gedcom):
             file_geo_cache_path (Optional[Path]): Path to per-file geo cache.
             geo_config_updates: Optional[Dict] = None
             app_hooks (Optional[AppHooks]): Application hooks for progress reporting.
+            fuzz (bool): Whether to use fuzzy matching for place names.
+            enable_enrichment (bool): Whether to run enrichment processing.
+            enable_statistics (bool): Whether to run statistics processing.
         """
-        super().__init__(gedcom_file=gedcom_file, app_hooks=app_hooks)
+        super().__init__(gedcom_file=gedcom_file, app_hooks=app_hooks, enable_enrichment=enable_enrichment, enable_statistics=enable_statistics)
 
         self.address_book = AddressBook(fuzz=fuzz)
         self.app_hooks = app_hooks
@@ -82,7 +87,7 @@ class GeolocatedGedcom(Gedcom):
 
         self._report_step("Geolocating addresses", target=0, reset_counter=True)
         self.geolocate_all(cache_only)
-       
+
         self._report_step("Locating People", target=self.gedcom_parser.num_people, reset_counter=True)
         self.geolocate_people()
 
@@ -118,7 +123,7 @@ class GeolocatedGedcom(Gedcom):
                     logger.info(logger_stop_message)
                 return True
         return False
-    
+
     def _update_key_value(self, key: str, value) -> None:
         """
         Update a key-value pair via app hooks. (Private method)
@@ -129,7 +134,7 @@ class GeolocatedGedcom(Gedcom):
         """
         if self.app_hooks and callable(getattr(self.app_hooks, "update_key_value", None)):
             self.app_hooks.update_key_value(key=key, value=value)
-    
+
     def save_location_cache(self) -> None:
         """
         Save the location cache to the specified file.
@@ -145,41 +150,41 @@ class GeolocatedGedcom(Gedcom):
     ) -> bool:
         """
         Process an address book with progress reporting and stop checking.
-        
+
         Args:
             address_book: The address book to process.
             progress_message: Message to display during progress.
             force_none_location: If True, always add None as location regardless of lookup result.
             save_cache_interval: If > 0, save cache every N items (0 = no periodic saves).
-            
+
         Returns:
             bool: True if stopped by user, False if completed normally.
         """
         num_places = address_book.len()
         self._report_step(progress_message, target=num_places, reset_counter=True)
-        
+
         for idx, (place, data) in enumerate(address_book.addresses().items(), 1):
             use_place = data.alt_addr if data.alt_addr else place
             location = self.geocoder.lookup_location(use_place)
-            
+
             # Add to address book with appropriate location
             if force_none_location:
                 self.address_book.add_address(place, None)
             else:
                 self.address_book.add_address(place, location)
-            
+
             # Check for stop request
             if self._stop_requested(logger_stop_message="Geolocation process stopped by user."):
                 return True
-            
+
             # Report progress at intervals
             if idx % self.geolocate_all_logger_interval == 0 or idx == num_places:
                 self._report_step(plus_step=self.geolocate_all_logger_interval, info=progress_message)
-            
+
             # Save cache periodically if requested
             if save_cache_interval > 0 and idx % save_cache_interval == 0:
                 self.save_location_cache()
-        
+
         return False
 
     def geolocate_all(self, cache_only: bool = False) -> None:
@@ -233,10 +238,10 @@ class GeolocatedGedcom(Gedcom):
         """
         super().read_full_address_list()
         num_addresses = len(self.address_list)
-        
+
         # Reset counter for second phase: populating address book
         self._report_step(f"Populating address book with {num_addresses} places", target=num_addresses, reset_counter=True)
-        
+
         num_addresses_existed = 0
         num_addresses_didnt_exist = 0
         for idx, place in enumerate(self.address_list):
@@ -251,12 +256,12 @@ class GeolocatedGedcom(Gedcom):
                 logger.debug(f"Added address to address book: `{place}`")
             else:
                 num_addresses_existed += 1
-        
+
         # Report final progress
         remainder = len(self.address_list) % 100
         if remainder > 0:
             self._report_step(plus_step=remainder)
-        
+
         logger.info(f"Address book read completed: {num_addresses} addresses, {num_addresses_existed} already existed, {num_addresses_didnt_exist} added.")
         logger.info(f"Address book stats: {self.address_book.address_existed} addresses existed during lookups, {self.address_book.address_didnt_exist} did not exist.")
 
@@ -271,7 +276,7 @@ class GeolocatedGedcom(Gedcom):
             if idx % 100 == 0 or idx == total_people:
                 person_name = getattr(person, 'name', '-Unknown-')
                 self._report_step(info=f"Locating people: {person_name}", plus_step=100 if idx % 100 == 0 else idx % 100)
-            
+
             for event in person.iter_life_events():
                 self.__geolocate_event(event)
                 if self._stop_requested(logger_stop_message="Locating people process stopped by user."):
@@ -279,7 +284,7 @@ class GeolocatedGedcom(Gedcom):
                     break
             if exit_requested:
                 break
-        
+
         if not exit_requested:
             logger.info(f"Geolocated events for {total_people} people.")
 

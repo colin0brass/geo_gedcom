@@ -68,7 +68,12 @@ pip install ged4py rapidfuzz unidecode pycountry pycountry-convert bpemb pyyaml
 from geo_gedcom import Gedcom
 
 gedcom_file = "Tree_2025-12-04.ged"
+# Load with all features enabled (default)
 g = Gedcom(gedcom_file, only_use_photo_tags=False)
+
+# Or disable enrichment/statistics for faster loading of large files
+g = Gedcom(gedcom_file, enable_enrichment=False, enable_statistics=False)
+
 filtered, msg = g.filter_generations(
     starting_person_id="@I1@",
     num_ancestor_generations=3,

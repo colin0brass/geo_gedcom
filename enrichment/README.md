@@ -2,6 +2,8 @@
 
 This module provides a flexible pipeline for enriching genealogical data (GEDCOM) by inferring missing information, identifying inconsistencies, and applying domain knowledge about human lifespans and family relationships.
 
+> **Note**: When loading large GEDCOM files in the GUI application, enrichment processing can be disabled via Configuration Options → Processing Options → "Enable enrichment processing during GEDCOM load" to speed up loading. See the main README for details.
+
 ## Overview
 
 The enrichment module processes genealogical records to:
@@ -67,7 +69,7 @@ for person_id, enriched_person in result.people.items():
     if 'death' in enriched_person.inferred_events:
         death_event = enriched_person.inferred_events['death']
         print(f"Inferred death: {death_event.date_range} (confidence: {death_event.confidence})")
-    
+
     # Check for issues
     for issue in enriched_person.issues:
         print(f"Issue: {issue.severity} - {issue.message}")
@@ -248,7 +250,7 @@ class EnrichedPerson:
     date_bounds: Dict[EventTag, DateRange]
     place_overrides: Dict[EventTag, str]
     issues: List[Issue]
-    
+
     # Convenience methods
     def has_event(self, tag: str) -> bool
     def get_event_date(self, tag: str) -> Optional[Any]
@@ -294,7 +296,7 @@ Represents uncertainty in dates:
 class DateRange:
     earliest: Optional[Any]  # Earliest possible date
     latest: Optional[Any]    # Latest possible date
-    
+
     def is_empty(self) -> bool
     def intersect(self, other: DateRange) -> DateRange
     def contains(self, date: Any) -> bool
@@ -315,7 +317,7 @@ from geo_gedcom.enrichment.model import EnrichedPerson, Issue
 class MyCustomRule(BaseRule):
     rule_id: str = "my_custom_rule"
     my_threshold: int = 10  # Custom parameter
-    
+
     def apply(
         self,
         enriched_people: Dict[str, EnrichedPerson],
@@ -325,16 +327,16 @@ class MyCustomRule(BaseRule):
     ) -> bool:
         """
         Apply the rule to all people.
-        
+
         Returns:
             bool: True if any changes were made, False otherwise
         """
         changed = False
-        
+
         for person_id, enriched_person in enriched_people.items():
             # Your rule logic here
             # ...
-            
+
             if some_condition:
                 # Report an issue
                 issue = Issue(
@@ -346,7 +348,7 @@ class MyCustomRule(BaseRule):
                 issues.append(issue)
                 enriched_person.issues.append(issue)
                 changed = True
-        
+
         return changed
 ```
 
@@ -413,7 +415,7 @@ from geo_gedcom.app_hooks import AppHooks
 class MyAppHooks(AppHooks):
     def report_step(self, info, target=None, reset_counter=False, plus_step=1):
         print(f"Progress: {info}")
-    
+
     def stop_requested(self, logger_stop_message=None):
         return False  # Return True to cancel enrichment
 
@@ -435,15 +437,15 @@ print(f"Rule execution stats: {result.rule_runs}")
 for person_id, enriched_person in result.people.items():
     # Original person data
     original = enriched_person.person
-    
+
     # Inferred events
     for event_tag, inferred_event in enriched_person.inferred_events.items():
         print(f"{event_tag}: {inferred_event.date_range} (confidence: {inferred_event.confidence})")
-    
+
     # Date bounds (tightened ranges)
     for event_tag, date_range in enriched_person.date_bounds.items():
         print(f"{event_tag} bounds: {date_range.earliest} to {date_range.latest}")
-    
+
     # Issues
     for issue in enriched_person.issues:
         print(f"{issue.severity}: {issue.message}")
