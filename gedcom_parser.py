@@ -486,6 +486,51 @@ class GedcomParser:
         Returns:
             List[str]: List of unique place names.
         """
+        # Prefer collecting addresses from already-parsed in-memory people/events.
+        # This avoids reparsing large GEDCOM files and reduces peak memory usage.
+        addresses_from_people = self._get_full_address_list_from_people()
+        if addresses_from_people:
+            return addresses_from_people
+
+        # Fallback to file scan only when parser did not build people/events.
+        return self._get_full_address_list_from_reader()
+
+    def _get_full_address_list_from_people(self) -> List[str]:
+        """Collect unique places from already parsed people and their life events."""
+        if not self.people:
+            return []
+
+        address_list: List[str] = []
+        seen = set()
+        stop_requested = False
+
+        for idx, person in enumerate(self.people.values(), 1):
+            if self._stop_requested(logger_stop_message="Reading address book stopped by user."):
+                stop_requested = True
+                break
+
+            for event in person.iter_life_events():
+                # Marriage wrappers store the underlying event on .event
+                event_obj = event.event if isinstance(event, Marriage) else event
+                place = getattr(event_obj, "place", None)
+                if place:
+                    place = place.strip()
+                    if place and place not in seen:
+                        address_list.append(place)
+                        seen.add(place)
+
+            if idx % 100 == 0:
+                self._report_step(plus_step=100)
+
+        if not stop_requested:
+            remainder = len(self.people) % 100
+            if remainder > 0:
+                self._report_step(plus_step=remainder)
+
+        return address_list
+
+    def _get_full_address_list_from_reader(self) -> List[str]:
+        """Fallback address extraction by scanning GEDCOM records from disk."""
         address_list = []
         seen = set()
         record_count = 0

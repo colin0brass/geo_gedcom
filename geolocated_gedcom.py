@@ -88,8 +88,8 @@ class GeolocatedGedcom(Gedcom):
         )
         cache_only = self.geo_config.get_geo_config('cache_only', False)
 
-        # Set target for address book reading based on total records to scan
-        total_records = self.gedcom_parser.num_people + self.gedcom_parser.num_families
+        # Set target for address book reading based on parsed people scanned
+        total_records = self.gedcom_parser.num_people
         self._report_step("Reading address book ...", target=total_records, reset_counter=True)
         self.read_full_address_book()
 
