@@ -56,7 +56,7 @@ class Geocode:
         'max_retries', 'retry_delay', 'backoff_base', 'geocode_timeout', 'days_between_retrying_failed_lookups',
         'get_continent_for_country_code', 'get_place_and_countrycode'
     ]
-    
+
     # Class constants
     HTTP_SERVER_ERROR_MIN = 500  # Start of HTTP 5xx server error range (transient/retryable)
     HTTP_SERVER_ERROR_MAX = 600  # End of HTTP 5xx server error range (exclusive)
@@ -211,7 +211,7 @@ class Geocode:
             address=geo_location.address
         )
 
-    def _retry_with_less_precision(self, address: str, country_code: str, country_name: str, 
+    def _retry_with_less_precision(self, address: str, country_code: str, country_name: str,
                                    found_country: bool, address_depth: int) -> Optional[Location]:
         """
         Retry geocoding with less precise address (removing leftmost component).
@@ -228,15 +228,15 @@ class Geocode:
         """
         if address_depth >= 3:
             return None
-            
+
         parts = address.split(',')
         if len(parts) > 1:
             less_precise_address = ','.join(parts[1:]).strip()
-            return self.geocode_address(less_precise_address, country_code, country_name, 
+            return self.geocode_address(less_precise_address, country_code, country_name,
                                        found_country, address_depth + 1)
         return None
 
-    def geocode_address(self, address: str, country_code: str, country_name: str, 
+    def geocode_address(self, address: str, country_code: str, country_name: str,
                        found_country: bool = False, address_depth: int = 0) -> Optional[Location]:
         """
         Geocode an address string and return a Location object.
@@ -257,7 +257,7 @@ class Geocode:
         geo_location = None
         for attempt in range(1, self.max_retries + 1):
             self._wait_for_rate_limit()
-            
+
             try:
                 logger.debug(f"Geocoding {address} (attempt {attempt}/{self.max_retries})")
                 geo_location = self._perform_geocode_request(address, country_code)
@@ -268,15 +268,15 @@ class Geocode:
                     country_code, country_name, found_country = self._infer_country_from_result(
                         geo_location, country_code, country_name, found_country)
                 break  # Successful geocode, exit retry loop
-                
-            except (GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable, 
+
+            except (GeocoderTimedOut, GeocoderServiceError, GeocoderUnavailable,
                    AdapterHTTPError, requests.RequestException) as e:
                 if self._is_retryable_error(e):
                     logger.warning(f"Transient geocoding error for {address} (HTTP {getattr(e, 'status', None)}): {e}")
                 else:
                     logger.error(f"Non-retryable geocoding error for {address}: {e}")
                     break  # Non-retryable error, exit loop
-                    
+
             except Exception as e:
                 logger.error(f"Unexpected error geocoding {address} (attempt {attempt}/{self.max_retries}): {e}")
 
@@ -296,7 +296,7 @@ class Geocode:
         # Try with less precision if unsuccessful
         if location is None:
             logger.debug(f"Retrying geocode for {address} with less precision")
-            location = self._retry_with_less_precision(address, country_code, country_name, 
+            location = self._retry_with_less_precision(address, country_code, country_name,
                                                       found_country, address_depth)
 
         return location
@@ -315,21 +315,22 @@ class Geocode:
         cached_places_with_geolocation = AddressBook(fuzz=fuzz)
         cached_places_without_geolocation = AddressBook(fuzz=fuzz)
         non_cached_places = AddressBook(fuzz=fuzz)
-        
+
         addresses = list(address_book.addresses().items())
         total_addresses = len(addresses)
-        
+
         # Set up progress tracking
         self._report_step(info="Separating cached locations", target=total_addresses, reset_counter=True, plus_step=0)
-        
-        for idx, (place, data) in enumerate(addresses):
-            # Check for stop request and report progress every 100 addresses
+
+        for idx, (place, data) in enumerate(addresses, 1):
+            # Check for stop request on every iteration
+            if self._stop_requested("Geocoding stopped by user"):
+                logger.info(f"Cache separation stopped after {idx} addresses")
+                break
+            # Report progress every 100 addresses
             if idx % 100 == 0:
-                if self._stop_requested("Geocoding stopped by user"):
-                    logger.info(f"Cache separation stopped after {idx} addresses")
-                    break
                 self._report_step(plus_step=100)
-            
+
             place_lower = place.lower()
             if not self.always_geocode and (place_lower in self.geo_cache.geo_cache):
                 if self.geo_cache.geo_cache[place_lower].no_result:
@@ -338,7 +339,12 @@ class Geocode:
                     cached_places_with_geolocation.add_address(place, data)
             else:
                 non_cached_places.add_address(place, data)
-        
+
+        # Report any remaining progress
+        remainder = total_addresses % 100
+        if remainder > 0:
+            self._report_step(plus_step=remainder)
+
         return (cached_places_with_geolocation, cached_places_without_geolocation, non_cached_places)
 
     def lookup_location(self, place: str) -> Optional[Location]:
@@ -366,7 +372,7 @@ class Geocode:
         if cache_entry and cache_entry.no_result:
             self.num_from_cache_no_location_result += 1
             return None
-        
+
         (place_with_country, country_code, country_name, found_country) = self.get_place_and_countrycode(use_place_name)
 
         if cache_entry and not self.always_geocode:
@@ -408,7 +414,7 @@ class Geocode:
 
     def _report_step(self, info: str = "", target: Optional[int] = None, reset_counter: bool = False, plus_step: int = 0) -> None:
         """Report a step via app hooks if available.
-        
+
         Args:
             info (str): Information message.
             target (int): Target count for progress.
@@ -422,10 +428,10 @@ class Geocode:
 
     def _stop_requested(self, logger_stop_message: str = "Stop requested by user") -> bool:
         """Check if stop has been requested via app hooks.
-        
+
         Args:
             logger_stop_message (str): Message to log if stop is requested.
-            
+
         Returns:
             bool: True if stop requested, False otherwise.
         """

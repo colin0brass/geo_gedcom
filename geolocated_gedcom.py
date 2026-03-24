@@ -189,7 +189,12 @@ class GeolocatedGedcom(Gedcom):
 
             # Report progress at intervals
             if idx % self.geolocate_all_logger_interval == 0 or idx == num_places:
-                self._report_step(plus_step=self.geolocate_all_logger_interval, info=progress_message)
+                # Calculate the actual step amount (handle remainder for last item)
+                if idx == num_places:
+                    step_amount = num_places % self.geolocate_all_logger_interval or self.geolocate_all_logger_interval
+                else:
+                    step_amount = self.geolocate_all_logger_interval
+                self._report_step(plus_step=step_amount, info=progress_message)
 
             # Save cache periodically if requested
             if save_cache_interval > 0 and idx % save_cache_interval == 0:
@@ -254,10 +259,11 @@ class GeolocatedGedcom(Gedcom):
 
         num_addresses_existed = 0
         num_addresses_didnt_exist = 0
-        for idx, place in enumerate(self.address_list):
+        processed_count = 0
+        for idx, place in enumerate(self.address_list, 1):
             if self._stop_requested(logger_stop_message="Reading address book process stopped by user."):
                 break
-            if idx > 0 and idx % 100 == 0:
+            if idx % 100 == 0:
                 self._report_step(plus_step=100)
             if not self.address_book.get_address(place):
                 location = None
@@ -266,9 +272,10 @@ class GeolocatedGedcom(Gedcom):
                 logger.debug(f"Added address to address book: `{place}`")
             else:
                 num_addresses_existed += 1
+            processed_count = idx
 
         # Report final progress
-        remainder = len(self.address_list) % 100
+        remainder = processed_count % 100
         if remainder > 0:
             self._report_step(plus_step=remainder)
 

@@ -352,13 +352,19 @@ class GedcomParser:
             Dict[str, Person]: Dictionary of Person objects.
         """
         people = {}
-        for idx, record in enumerate(records0('INDI')):
+        for idx, record in enumerate(records0('INDI'), 1):
             people[record.xref_id] = self.__create_person(record)
             if self._stop_requested():
                 self._stop_was_requested = True
                 break
             if idx % 100 == 0:
                 self._report_step(plus_step=100)
+
+        # Report any remaining progress if not stopped
+        if not self._stop_was_requested:
+            remainder = len(people) % 100
+            if remainder > 0:
+                self._report_step(plus_step=remainder)
         return people
 
     def _add_marriages(self, people: Dict[str, Person], records) -> Dict[str, Person]:
@@ -372,7 +378,8 @@ class GedcomParser:
         Returns:
             Dict[str, Person]: Updated dictionary of Person objects.
         """
-        for idx, record in enumerate(records('FAM')):
+        family_count = 0
+        for idx, record in enumerate(records('FAM'), 1):
             # Get partner list from family record
             # Including non-traditional families by collecting all partners
             partner_person_list = []
@@ -417,11 +424,18 @@ class GedcomParser:
                             if wife_record and partner_person.xref_id == wife_record.xref_id:
                                 people[child.xref_id].mother = partner_person.xref_id
                                 partner_person.children.append(child.xref_id)
+            family_count = idx
             if self._stop_requested():
                 self._stop_was_requested = True
                 break
             if idx % 100 == 0:
                 self._report_step(plus_step=100)
+
+        # Report any remaining progress if not stopped
+        if not self._stop_was_requested:
+            remainder = family_count % 100
+            if remainder > 0:
+                self._report_step(plus_step=remainder)
         return people
 
     def _fast_count(self) -> None:
@@ -461,8 +475,7 @@ class GedcomParser:
         """
 
         self._report_step("Counting people", target=0)
-        self.num_people = 0
-        self.num_families = 0
+        self._fast_count()
         self._stop_was_requested = False
         try:
             # Single pass: build people and then addresses
@@ -473,8 +486,7 @@ class GedcomParser:
                 # Only continue to link families if not stopped
                 if not self._stop_was_requested:
                     self._report_step("Linking families from GED", target=self.num_families, reset_counter=True, plus_step=0)
-                    self._report_step("Linking families from GED", target=self.num_families, reset_counter=True, plus_step=0)
-                self.people = self._add_marriages(self.people, records)
+                    self.people = self._add_marriages(self.people, records)
 
         except Exception as e:
             logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")

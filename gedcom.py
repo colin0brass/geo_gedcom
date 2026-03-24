@@ -110,7 +110,7 @@ class Gedcom:
 
         # Enrichment (optional)
         if enable_enrichment:
-            self._report_step("Enrichment", target=num_people, reset_counter=True, plus_step=0)
+            self._report_step("Enrichment", target=0, reset_counter=True, plus_step=0)
             self.enrichment = Enrichment(people=self.people, app_hooks=self.app_hooks)
             enrichment_num_issues: int = len(self.enrichment.issues)
             if enrichment_num_issues > 0:
@@ -121,7 +121,7 @@ class Gedcom:
 
         # Statistics (optional) - skip if stop was requested during parsing or enrichment
         if enable_statistics and not self.gedcom_parser._stop_was_requested:
-            self._report_step("Statistics", target=num_people, reset_counter=True, plus_step=0)
+            self._report_step("Statistics", target=0, reset_counter=True, plus_step=0)
             self.statistics = Statistics(gedcom_parser=self.gedcom_parser, app_hooks=self.app_hooks)
         else:
             self.statistics = None

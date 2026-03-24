@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class RelationshipPathCollector(StatisticsCollector):
     """
     Collects relationship statistics from a focus person's perspective.
-    
+
     Analyzes how people in the dataset relate to a specific focus person,
     including:
     - Direct ancestors and descendants
@@ -29,83 +29,84 @@ class RelationshipPathCollector(StatisticsCollector):
     - Relatives by marriage
     - Steps away (relationship distance)
     - Generational difference
-    
+
     Attributes:
         focus_person_id: ID of the focus person (if None, uses first person or most connected)
     """
     collector_id: str = "relationship_path"
     focus_person_id: Optional[str] = None
-    
+
     def collect(self, people: Iterable[Any], existing_stats: Stats, collector_num: int = None, total_collectors: int = None) -> Stats:
         """Collect relationship path statistics."""
         stats = Stats()
-        
+
         # Convert to list and create lookup
         people_list = list(people)
         if not people_list:
             return stats
-        
+
         total_people = len(people_list)
         people_dict = {self._get_id(p): p for p in people_list}
-        
+
         # Build collector prefix
         prefix = f"Statistics ({collector_num}/{total_collectors}): " if collector_num and total_collectors else "Statistics: "
-        
+
         # Set up progress tracking
         self._report_step(info=f"{prefix}Analyzing relationship paths", target=total_people, reset_counter=True, plus_step=0)
-        
+
         # Determine focus person
         focus_person = self._get_focus_person(people_list, people_dict)
         if not focus_person:
             logger.warning("No focus person found, skipping relationship path analysis")
             return stats
-        
+
         focus_id = self._get_id(focus_person)
         focus_name = self._get_name(focus_person)
-        
+
         stats.add_value('relationship_path', 'focus_person_id', focus_id)
         stats.add_value('relationship_path', 'focus_person_name', focus_name)
-        
+
         # Build relationship graph
         relationships = self._analyze_relationships(focus_person, people_dict)
-        
+
         # Categorize relationships
         direct_ancestors = []
         direct_descendants = []
         blood_relatives = []
         relatives_by_marriage = []
-        
+
         steps_distribution = Counter()
         generation_distribution = Counter()
-        
+
         # Relationship type counters
         relationship_types = Counter()
-        
-        for idx, (person_id, rel_info) in enumerate(relationships.items()):
-            # Check for stop request and report progress every 100 people
+
+        for idx, (person_id, rel_info) in enumerate(relationships.items(), 1):
+            # Check for stop request on every iteration
+            if self._stop_requested("Relationship path collection stopped"):
+                break
+            # Report progress every 100 people
             if idx % 100 == 0:
-                if self._stop_requested("Relationship path collection stopped"):
-                    break
                 self._report_step(plus_step=100)
-            
+
             if person_id == focus_id:
                 continue
-            
+
             person = people_dict.get(person_id)
             if not person:
                 continue
-            
+
             name = self._get_name(person)
             steps = rel_info['steps']
             generation = rel_info['generation']
             is_blood = rel_info['is_blood']
             rel_type = rel_info['type']
-            
+
             # Count steps and generations
             steps_distribution[steps] += 1
             generation_distribution[generation] += 1
             relationship_types[rel_type] += 1
-            
+
             # Categorize
             if rel_type in ['parent', 'grandparent', 'great-grandparent', 'ancestor']:
                 direct_ancestors.append({'name': name, 'steps': steps, 'generation': generation, 'type': rel_type})
@@ -115,7 +116,7 @@ class RelationshipPathCollector(StatisticsCollector):
                 blood_relatives.append({'name': name, 'steps': steps, 'generation': generation, 'type': rel_type})
             else:
                 relatives_by_marriage.append({'name': name, 'steps': steps, 'generation': generation, 'type': rel_type})
-        
+
         # Overall counts
         stats.add_value('relationship_path', 'total_people_analyzed', len(people_list))
         stats.add_value('relationship_path', 'total_relationships_found', len(relationships) - 1)  # Exclude focus person
@@ -123,102 +124,102 @@ class RelationshipPathCollector(StatisticsCollector):
         stats.add_value('relationship_path', 'direct_descendants', len(direct_descendants))
         stats.add_value('relationship_path', 'blood_relatives', len(blood_relatives))
         stats.add_value('relationship_path', 'relatives_by_marriage', len(relatives_by_marriage))
-        
+
         # Steps away distribution
         if steps_distribution:
             stats.add_value('relationship_path', 'steps_away_distribution', {
                 f"{step} step{'s' if step != 1 else ''}": count
                 for step, count in sorted(steps_distribution.items())
             })
-            
+
             stats.add_value('relationship_path', 'closest_step', min(steps_distribution.keys()))
             stats.add_value('relationship_path', 'furthest_step', max(steps_distribution.keys()))
             stats.add_value('relationship_path', 'average_steps', round(
                 sum(s * c for s, c in steps_distribution.items()) / sum(steps_distribution.values()), 1
             ))
-        
+
         # Generation distribution
         if generation_distribution:
             stats.add_value('relationship_path', 'generation_distribution', {
                 self._generation_label(gen): count
                 for gen, count in sorted(generation_distribution.items())
             })
-            
+
             stats.add_value('relationship_path', 'oldest_generation', min(generation_distribution.keys()))
             stats.add_value('relationship_path', 'youngest_generation', max(generation_distribution.keys()))
             generation_span = max(generation_distribution.keys()) - min(generation_distribution.keys())
             stats.add_value('relationship_path', 'generation_span', generation_span)
             stats.add_value('relationship_path', 'total_generations', generation_span + 1)
-        
+
         # Relationship types
         if relationship_types:
             stats.add_value('relationship_path', 'relationship_types', dict(
                 sorted(relationship_types.items(), key=lambda x: x[1], reverse=True)
             ))
-            
+
             most_common_type = relationship_types.most_common(1)[0]
             stats.add_value('relationship_path', 'most_common_relationship', {
                 'type': most_common_type[0],
                 'count': most_common_type[1]
             })
-        
+
         # Detailed lists (top 20 each)
         if direct_ancestors:
-            stats.add_value('relationship_path', 'direct_ancestors_list', 
+            stats.add_value('relationship_path', 'direct_ancestors_list',
                           sorted(direct_ancestors, key=lambda x: x['steps'])[:20])
-        
+
         if direct_descendants:
             stats.add_value('relationship_path', 'direct_descendants_list',
                           sorted(direct_descendants, key=lambda x: x['steps'])[:20])
-        
+
         if blood_relatives:
             stats.add_value('relationship_path', 'blood_relatives_list',
                           sorted(blood_relatives, key=lambda x: x['steps'])[:20])
-        
+
         if relatives_by_marriage:
             stats.add_value('relationship_path', 'relatives_by_marriage_list',
                           sorted(relatives_by_marriage, key=lambda x: x['steps'])[:20])
-        
+
         return stats
-    
+
     def _get_focus_person(self, people_list: List[Any], people_dict: Dict[str, Any]) -> Optional[Any]:
         """Determine the focus person."""
         # If focus_person_id is specified, use it
         if self.focus_person_id:
             return people_dict.get(self.focus_person_id)
-        
+
         # Otherwise, find the most connected person (heuristic: most children + parents)
         max_connections = 0
         focus = None
-        
+
         for person in people_list:
             connections = 0
-            
+
             # Count parents
             if hasattr(person, 'father') and person.father:
                 connections += 1
             if hasattr(person, 'mother') and person.mother:
                 connections += 1
-            
+
             # Count children
             if hasattr(person, 'children'):
                 connections += len(list(person.children))
-            
+
             # Count spouses
             if hasattr(person, 'get_events'):
                 marriages = person.get_events('marriage') or []
                 connections += len(marriages)
-            
+
             if connections > max_connections:
                 max_connections = connections
                 focus = person
-        
+
         return focus if focus else (people_list[0] if people_list else None)
-    
+
     def _analyze_relationships(self, focus_person: Any, people_dict: Dict[str, Any]) -> Dict[str, Dict]:
         """
         Analyze relationships using BFS from focus person.
-        
+
         Returns dict mapping person_id to relationship info:
         {
             'steps': int,
@@ -238,18 +239,18 @@ class RelationshipPathCollector(StatisticsCollector):
                 'path': [focus_id]
             }
         }
-        
+
         # BFS queue: (person_id, steps, generation, is_blood, relationship_type, path)
         queue = deque([(focus_id, 0, 0, True, 'self', [focus_id])])
         visited = {focus_id}
-        
+
         while queue:
             current_id, steps, generation, is_blood, rel_type, path = queue.popleft()
             current_person = people_dict.get(current_id)
-            
+
             if not current_person:
                 continue
-            
+
             # Explore parents (blood relatives, go up generation)
             for parent_attr in ['father', 'mother']:
                 if hasattr(current_person, parent_attr):
@@ -267,7 +268,7 @@ class RelationshipPathCollector(StatisticsCollector):
                             'path': new_path
                         }
                         queue.append((parent_id, steps + 1, new_gen, True, new_type, new_path))
-            
+
             # Explore children (blood relatives, go down generation)
             if hasattr(current_person, 'children'):
                 for child in current_person.children:
@@ -285,7 +286,7 @@ class RelationshipPathCollector(StatisticsCollector):
                             'path': new_path
                         }
                         queue.append((child_id, steps + 1, new_gen, True, new_type, new_path))
-            
+
             # Explore spouses (relatives by marriage, same generation)
             if hasattr(current_person, 'get_events'):
                 marriages = current_person.get_events('marriage') or []
@@ -305,17 +306,17 @@ class RelationshipPathCollector(StatisticsCollector):
                                 'path': new_path
                             }
                             queue.append((spouse_id, steps + 1, generation, False, new_type, new_path))
-        
+
         return relationships
-    
+
     def _determine_relationship_type(self, steps: int, generation: int, is_blood: bool, is_ancestor: bool = None) -> str:
         """Determine relationship type based on steps and generation."""
         if steps == 0:
             return 'self'
-        
+
         if not is_blood:
             return 'in-law' if steps > 1 else 'spouse'
-        
+
         # Direct ancestors
         if generation < 0:
             if generation == -1:
@@ -326,7 +327,7 @@ class RelationshipPathCollector(StatisticsCollector):
                 return 'great-grandparent'
             else:
                 return 'ancestor'
-        
+
         # Direct descendants
         elif generation > 0:
             if generation == 1:
@@ -337,7 +338,7 @@ class RelationshipPathCollector(StatisticsCollector):
                 return 'great-grandchild'
             else:
                 return 'descendant'
-        
+
         # Same generation (siblings, cousins)
         else:
             if steps == 1:
@@ -348,7 +349,7 @@ class RelationshipPathCollector(StatisticsCollector):
                 return 'cousin/great-aunt/uncle'
             else:
                 return f'relative ({steps} steps away)'
-    
+
     def _generation_label(self, generation: int) -> str:
         """Convert generation number to label."""
         if generation == 0:
@@ -367,7 +368,7 @@ class RelationshipPathCollector(StatisticsCollector):
                 return '-2 generations (grandparents)'
             else:
                 return f'{generation} generations'
-    
+
     def _get_partner(self, marriage: Any, person: Any) -> Optional[Any]:
         """Get the partner from a marriage."""
         if hasattr(marriage, 'partner'):
@@ -376,7 +377,7 @@ class RelationshipPathCollector(StatisticsCollector):
             partners = [p for p in marriage.people_list if p != person]
             return partners[0] if partners else None
         return None
-    
+
     def _get_id(self, person: Any) -> str:
         """Get person ID."""
         if hasattr(person, 'xref_id'):
@@ -384,7 +385,7 @@ class RelationshipPathCollector(StatisticsCollector):
         if hasattr(person, 'id'):
             return person.id
         return str(id(person))
-    
+
     def _get_name(self, person: Any) -> str:
         """Get person's name."""
         if hasattr(person, 'name'):
