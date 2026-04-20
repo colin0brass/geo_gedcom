@@ -7,6 +7,7 @@ geographic settings from a YAML configuration file.
 
 import yaml
 import logging
+import re
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -14,6 +15,24 @@ import pycountry
 import pycountry_convert as pc
 
 logger = logging.getLogger(__name__)
+
+LEADING_PLACE_NOISE_TOKENS = {"of"}
+
+
+def _normalize_country_lookup_key(country_name: str) -> str:
+    """Normalize country lookup text by removing punctuation and collapsing spaces."""
+    cleaned = re.sub(r"[^\w\s]", "", country_name or "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+    return cleaned
+
+
+def _clean_place_components(place: str) -> list[str]:
+    """Split a place into cleaned comma-separated components and drop leading noise."""
+    parts = [part.strip() for part in (place or "").split(',') if part and part.strip()]
+    while parts and _normalize_country_lookup_key(parts[0]) in LEADING_PLACE_NOISE_TOKENS:
+        parts.pop(0)
+    return parts
+
 
 class GeoConfig:
     """
@@ -54,6 +73,7 @@ class GeoConfig:
         self.country_code_to_name_dict: dict = {}
         self.country_substitutions_lower: dict = {}
         self.countrynames_dict_lower: dict = {}  # Initialize to empty dict
+        self.subdivision_country_lookup: dict = {}
         self.default_country = None
         self.fallback_continent_map = {}
 
@@ -129,6 +149,7 @@ class GeoConfig:
         Populates country names, codes, substitutions, and continent mappings.
         """
         country_substitutions = self.__geo_config.get('country_substitutions', {})
+        subdivision_country_substitutions = self.__geo_config.get('subdivision_country_substitutions', {})
         self.default_country = self.__geo_config.get('default_country', '')
         additional_countries_codes_dict_to_add = self.__geo_config.get('additional_countries_codes_dict_to_add', {})
         self.fallback_continent_map = self.__geo_config.get('fallback_continent_map', {})
@@ -142,11 +163,104 @@ class GeoConfig:
         self.country_name_to_code_dict = {country.name: country.alpha_2 for country in pycountry.countries}
         self.country_name_to_code_dict.update(additional_countries_codes_dict_to_add)
 
-        self.country_code_to_name_dict = {v: k for k, v in self.country_name_to_code_dict.items()}
+        # Keep canonical display names from pycountry and only fill in extra codes that do not
+        # already exist (for synthetic entries like EU or WI).
+        self.country_code_to_name_dict = {country.alpha_2: country.name for country in pycountry.countries}
+        for country_name, country_code in additional_countries_codes_dict_to_add.items():
+            self.country_code_to_name_dict.setdefault(country_code, country_name)
         self.country_code_to_continent_dict = {code: self.country_code_to_name_dict.get(code) for code in self.country_code_to_name_dict.keys()}
 
-        self.country_substitutions_lower = {k.lower(): v for k, v in country_substitutions.items()}
-        self.countrynames_dict_lower = {name.lower(): name for name in self.countrynames}
+        self.country_substitutions_lower = {
+            _normalize_country_lookup_key(k): v for k, v in country_substitutions.items()
+        }
+        self.countrynames_dict_lower = {
+            _normalize_country_lookup_key(name): name for name in self.countrynames
+        }
+        self.subdivision_country_lookup, self.subdivision_display_lookup = self._build_subdivision_lookups(
+            subdivision_country_substitutions
+        )
+
+    def _build_subdivision_lookups(self, subdivision_country_substitutions: dict) -> tuple[dict[str, str], dict[str, str]]:
+        """Build normalized subdivision lookups for country inference and display labels.
+
+        Uses pycountry ISO-3166-2 subdivisions where the normalized subdivision name maps
+        uniquely to a single country, then overlays any explicit config aliases for local
+        shorthand such as genealogical abbreviations.
+        """
+        subdivision_to_country_codes: dict[str, set[str]] = {}
+
+        for subdivision in pycountry.subdivisions:
+            normalized_name = _normalize_country_lookup_key(subdivision.name)
+            if not normalized_name:
+                continue
+            subdivision_to_country_codes.setdefault(normalized_name, set()).add(subdivision.country_code)
+
+        country_lookup: dict[str, str] = {}
+        display_lookup: dict[str, str] = {}
+        for normalized_name, country_codes in subdivision_to_country_codes.items():
+            if len(country_codes) != 1:
+                continue
+            country_code = next(iter(country_codes))
+            country_name = self.country_code_to_name_dict.get(country_code)
+            if country_name:
+                country_lookup[normalized_name] = country_name
+
+        for subdivision in pycountry.subdivisions:
+            normalized_name = _normalize_country_lookup_key(subdivision.name)
+            if normalized_name in country_lookup:
+                display_lookup[normalized_name] = subdivision.name
+
+        for alias, country_name in subdivision_country_substitutions.items():
+            canonical_country = self._canonicalize_country_reference(country_name)
+            if canonical_country:
+                normalized_alias = _normalize_country_lookup_key(alias)
+                country_lookup[normalized_alias] = canonical_country
+                display_lookup[normalized_alias] = self._resolve_subdivision_display_name(alias, canonical_country)
+
+        return country_lookup, display_lookup
+
+    def _resolve_subdivision_display_name(self, subdivision_name: str, canonical_country: str) -> str:
+        """Resolve a subdivision alias to a stable display label when possible."""
+        normalized_name = _normalize_country_lookup_key(subdivision_name)
+        if not normalized_name:
+            return subdivision_name
+
+        subdivision_matches = []
+        country_code = self.get_country_code(canonical_country)
+        for subdivision in pycountry.subdivisions:
+            if country_code and subdivision.country_code != country_code:
+                continue
+
+            normalized_subdivision_name = _normalize_country_lookup_key(subdivision.name)
+            if (
+                normalized_subdivision_name == normalized_name
+                or normalized_subdivision_name.startswith(normalized_name)
+            ):
+                subdivision_matches.append(subdivision.name)
+
+        if len(subdivision_matches) == 1:
+            return subdivision_matches[0]
+
+        return subdivision_name.strip()
+
+    def _canonicalize_country_reference(self, country_name: str) -> str:
+        """Resolve a configured country reference to its canonical display name."""
+        substituted_name, _ = self.substitute_country_name(country_name)
+        canonical_name, found = self.get_country_name(substituted_name)
+        return canonical_name if found else substituted_name
+
+    def infer_country_from_place_component(self, place_component: str) -> Optional[str]:
+        """Infer a country from a trailing subdivision/state/province component."""
+        return self.subdivision_country_lookup.get(_normalize_country_lookup_key(place_component))
+
+    def canonicalize_subdivision_name(self, subdivision_name: str) -> str:
+        """Return a stable display label for a subdivision/state/province name."""
+        if not subdivision_name:
+            return ""
+        return self.subdivision_display_lookup.get(
+            _normalize_country_lookup_key(subdivision_name),
+            subdivision_name.strip(),
+        )
 
     def get_continent_for_country_code(self, country_code: str) -> Optional[str]:
         """
@@ -183,7 +297,7 @@ class GeoConfig:
         """
         if not country_name:
             return country_name, False
-        substituted = self.country_substitutions_lower.get(country_name.lower())
+        substituted = self.country_substitutions_lower.get(_normalize_country_lookup_key(country_name))
         if substituted:
             return substituted, True
         return country_name, False
@@ -198,8 +312,9 @@ class GeoConfig:
         Returns:
             Tuple[Optional[str], bool]: (Canonical country name if found, True if found, else None and False)
         """
-        if country_name.lower() in self.countrynames_dict_lower:
-            return self.countrynames_dict_lower[country_name.lower()], True
+        normalized_key = _normalize_country_lookup_key(country_name)
+        if normalized_key in self.countrynames_dict_lower:
+            return self.countrynames_dict_lower[normalized_key], True
         else:
             return None, False
         
@@ -228,22 +343,33 @@ class GeoConfig:
         found = False
         country_name = ''
 
-        place_lower = place.lower()
-        last_place_element = place_lower.split(',')[-1].strip()
+        parts = _clean_place_components(place)
+        place_lower = ', '.join(part.lower() for part in parts)
+        last_place_element = parts[-1] if parts else ''
 
         country_name, found_sub = self.substitute_country_name(last_place_element)
         if found_sub:
             logger.debug(f"Substituting country '{last_place_element}' with '{country_name}' in place '{place}'")
-            place_lower = place_lower.replace(last_place_element, country_name)
+            if parts:
+                parts[-1] = country_name
+                place_lower = ', '.join(part.lower() for part in parts)
             found = True
         else:
             country_name, found_country = self.get_country_name(last_place_element)
             if found_country:
                 found = True
 
+        if not found:
+            inferred_country = self.infer_country_from_place_component(last_place_element)
+            if inferred_country:
+                country_name = inferred_country
+                parts[-1] = inferred_country
+                place_lower = ', '.join(part.lower() for part in parts)
+                found = True
+
         if not found and self.default_country and self.default_country.lower() != 'none':
             logger.debug(f"Adding default country '{self.default_country}' to place '{place}'")
-            place_lower = place_lower + ', ' + self.default_country
+            place_lower = (place_lower + ', ' if place_lower else '') + self.default_country
             country_name = self.default_country
 
         country_code = self.get_country_code(country_name) if country_name else 'none'
