@@ -494,8 +494,8 @@ class GedcomParser:
                         if self.app_hooks and callable(getattr(self.app_hooks, "report_step", None)):
                             self.app_hooks.report_step(set_counter = iteration, plus_step=100)
 
-        except Exception as e:
-            logger.error(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}': {e}")
+        except Exception:
+            logger.exception(f"Error extracting people & places from GEDCOM file '{self.gedcom_file}'")
 
     def get_full_address_list(self) -> List[str]:
         """

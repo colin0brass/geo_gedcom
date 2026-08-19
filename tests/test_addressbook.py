@@ -34,3 +34,15 @@ def test_fuzzy_addressbook_invalid_add():
             ab.add(None, None)
     else:
         pass
+
+
+def test_fuzzy_addressbook_exact_match_with_none_location_does_not_keyerror():
+    """Exact-match inserts with a None location should not treat the Location object as a dict key."""
+    ab = FuzzyAddressBook()
+    address = "Minchinhampton, Gloucestershire, England"
+
+    ab.add_address(address, None, fuzz=False)
+
+    stored = ab.get_address(address)
+    assert stored is not None
+    assert stored.address == address

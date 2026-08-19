@@ -197,6 +197,8 @@ class GedcomDate:
             int or None: The year value, or None if not found.
         """
         single_date = self.single
+        if single_date is None:
+            return None
         if hasattr(single_date, 'year'):
             year = getattr(single_date, 'year', None)
             return int(year) if year is not None else None
@@ -205,7 +207,7 @@ class GedcomDate:
             if match:
                 return int(match.group(1))
             else:
-                logger.warning('GedcomDate: year_num: unable to parse single date: "%s"', single_date)
+                logger.debug('GedcomDate: year_num: unable to parse single date: "%s"', single_date)
                 return None
 
     @property

@@ -59,11 +59,21 @@ def test_empty_date():
     result = gd.resolved
     assert result is None or isinstance(result, str)
 
+
 def test_none_date():
     """Test parsing of None as a date."""
     gd = GedcomDate(None)
     result = gd.resolved
     assert result is None or isinstance(result, str)
+
+
+def test_none_date_year_num_is_silent(caplog):
+    """A missing date should be treated as missing data without noisy warnings."""
+    gd = GedcomDate(None)
+    with caplog.at_level("WARNING"):
+        assert gd.year_num is None
+    assert "unable to parse single date" not in caplog.text
+
 
 def test_leap_year():
     """Test parsing of a valid leap day."""

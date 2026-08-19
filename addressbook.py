@@ -97,17 +97,19 @@ class FuzzyAddressBook:
         if fuzz:
             existing_key = self.fuzzy_lookup_address(address)
         else:
-            existing_key =  self.get_address(address) 
+            existing_key = address if self.get_address(address) is not None else None
 
         if existing_key is not None:
             # If a similar (or identical) address exists, create or update the entry with the same alt_addr
-            existing_location = self.__addresses[existing_key]
-            if existing_key == address: # exact match; use existing location and increment usage
+            existing_location = self.__addresses.get(existing_key)
+            if existing_key == address and existing_location is not None:  # exact match; use existing location and increment usage
                 if isinstance(existing_location, Location):
                     location = existing_location.merge(location)
                     location.used = existing_location.used + 1
                 if not isinstance(location, Location):
                     location = Location(address=address, used=1)
+            elif existing_location is None:
+                location = Location(address=address) if location is None else location
             # Update the existing entry with the new location data
             self.__add_address(existing_key, location)
         else:

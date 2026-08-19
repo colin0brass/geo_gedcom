@@ -288,7 +288,7 @@ class Gedcom:
             Optional[Person]: The matching Person object, or None if no match found.
         """
         search_name = name.lower().strip()
-        
+
         for person in self.people.values():
             if person.name:
                 person_name = person.name.lower()
@@ -298,9 +298,13 @@ class Gedcom:
                 else:
                     if search_name in person_name:
                         return person
-        
+
         return None
-        
+
+    def find_person_by_name(self, name: str, exact_match: bool = False) -> Optional[Person]:
+        """Backward-compatible alias for get_person_by_name."""
+        return self.get_person_by_name(name=name, exact_match=exact_match)
+
     def export_people_with_photos(
         self,
         people: Dict[str, Person],
